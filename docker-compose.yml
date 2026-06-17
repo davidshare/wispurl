@@ -137,6 +137,35 @@ services:
       retries: 12
       start_period: 20s
 
+  qr-service:
+    build:
+      context: ./qr-service
+    environment:
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      MIN_SIZE_PX: ${MIN_SIZE_PX:-64}
+      MAX_SIZE_PX: ${MAX_SIZE_PX:-1024}
+      DEFAULT_SIZE_PX: ${DEFAULT_SIZE_PX:-256}
+      CACHE_TTL: ${CACHE_TTL:-86400}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    # No published ports: reached through the gateway at /qr/*. Stateless, so it can
+    # be scaled freely (uncomment to demonstrate): deploy.replicas > 1.
+    # deploy:
+    #   replicas: 2
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   gateway:
     build:
       context: ./gateway
