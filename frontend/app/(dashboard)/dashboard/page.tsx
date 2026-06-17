@@ -12,7 +12,7 @@ export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] space-y-8 px-6 py-16">
+    <div className="space-y-8 p-6 md:p-8">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-4">
           <Eyebrow>Dashboard</Eyebrow>
