@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { SITE_URL } from "@/lib/env";
 
 // Self-hosted at build time by next/font. Inter = body/UI, Space Grotesk =
 // headlines/big numbers, JetBrains Mono = short codes/URLs/stats (data is the brand).
@@ -24,9 +25,29 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WispURL — compress your links",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "WispURL — compress your links",
+    template: "%s — WispURL",
+  },
   description:
     "WispURL shortens links and shows you what happens after the click.",
+  applicationName: "WispURL",
+  robots: { index: true, follow: true },
+  openGraph: {
+    type: "website",
+    siteName: "WispURL",
+    url: "/",
+    title: "WispURL — compress your links",
+    description:
+      "WispURL shortens links and shows you what happens after the click.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "WispURL — compress your links",
+    description:
+      "WispURL shortens links and shows you what happens after the click.",
+  },
 };
 
 export default function RootLayout({
