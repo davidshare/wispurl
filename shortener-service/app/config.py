@@ -12,8 +12,15 @@ class ShortenerSettings(ServiceSettings):
     shortcode_max_retries: int = Field(default=5, alias="SHORTCODE_MAX_RETRIES")
     rate_limiter_url: AnyHttpUrl = Field(alias="RATE_LIMITER_URL")
     analytics_service_url: AnyHttpUrl = Field(alias="ANALYTICS_SERVICE_URL")
-    # Shared secret presented to the Analytics service's internal /events endpoint.
+    # Shared secret presented to the internal /events and /check endpoints.
     internal_api_key: str = Field(alias="INTERNAL_API_KEY")
+    # Short timeout so a slow limiter cannot stall link creation.
+    rate_limiter_request_timeout: float = Field(
+        default=1.0,
+        alias="RATE_LIMITER_REQUEST_TIMEOUT",
+    )
+    # If the limiter is unreachable, allow the create (fail-open) by default.
+    rate_limiter_fail_open: bool = Field(default=True, alias="RATE_LIMITER_FAIL_OPEN")
     # Hard cap on the fire-and-forget analytics call so it can never slow a redirect.
     analytics_request_timeout: float = Field(
         default=2.0,

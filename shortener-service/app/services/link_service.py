@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
+import httpx
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,12 +30,17 @@ class LinkService:
     async def create_link(
         self,
         *,
+        client: httpx.AsyncClient,
         user_id: UUID,
         long_url: str,
         custom_slug: str | None,
         expires_at: datetime | None,
     ) -> LinkResponse:
-        if not await check_rate_limit(user_id=user_id, settings=self._settings):
+        if not await check_rate_limit(
+            client=client,
+            user_id=user_id,
+            settings=self._settings,
+        ):
             raise RateLimitExceededError
 
         short_code = (

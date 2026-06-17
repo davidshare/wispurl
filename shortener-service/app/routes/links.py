@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 
 from app.dependencies import CurrentUserIdDep, SessionDep, SettingsDep
 from app.errors.exceptions import empty_response
@@ -16,12 +16,14 @@ router = APIRouter(prefix="/links", tags=["links"])
 @router.post("", response_model=LinkResponse, status_code=status.HTTP_201_CREATED)
 async def create_link(
     payload: CreateLinkRequest,
+    request: Request,
     current_user_id: CurrentUserIdDep,
     session: SessionDep,
     settings: SettingsDep,
 ) -> LinkResponse:
     service = LinkService(session, settings)
     return await service.create_link(
+        client=request.app.state.http_client,
         user_id=current_user_id,
         long_url=str(payload.long_url),
         custom_slug=payload.custom_slug,

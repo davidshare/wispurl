@@ -2,23 +2,51 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import httpx
+import structlog
+
 from app.config import ShortenerSettings
+
+logger = structlog.get_logger()
+
+# The only action this service asks the limiter about. Must match an allow-listed
+# action in the Rate Limiter service.
+_ACTION_CREATE_LINK = "create_link"
 
 
 async def check_rate_limit(
     *,
+    client: httpx.AsyncClient,
     user_id: UUID,
     settings: ShortenerSettings,
 ) -> bool:
-    """TODO: replace with httpx POST to RATE_LIMITER_URL/check (with a timeout).
+    """Ask the Rate Limiter whether ``user_id`` may create another link.
 
-    Fail policy: this stub deliberately fails OPEN so link creation is not blocked
-    by a dependency that does not exist yet. The real limiter should instead fail
-    CLOSED on timeout/error (return False -> 429): a limiter that silently fails
-    open under load defeats its own purpose. Make that the deliberate choice when
-    wiring the httpx call, and set an explicit short timeout so a slow limiter
-    cannot stall link creation.
+    Posts to ``RATE_LIMITER_URL/check`` with the internal shared key and a short
+    timeout. Returns ``True`` when the user is within their limit.
+
+    FAIL MODE (configurable via ``RATE_LIMITER_FAIL_OPEN``, default fail-OPEN): if
+    the limiter is unreachable, slow, or errors, we DEFAULT TO ALLOWING the create
+    and log a warning, so a limiter outage cannot take down link creation. Set
+    fail-open to false to fail CLOSED instead — the right choice when preventing
+    abuse matters more than availability.
     """
-
-    _ = (user_id, settings)
-    return True
+    url = f"{str(settings.rate_limiter_url).rstrip('/')}/check"
+    try:
+        response = await client.post(
+            url,
+            json={"user_id": str(user_id), "action": _ACTION_CREATE_LINK},
+            headers={"X-Internal-Key": settings.internal_api_key},
+            timeout=settings.rate_limiter_request_timeout,
+        )
+        response.raise_for_status()
+        allowed = bool(response.json()["allowed"])
+    except Exception as exc:
+        logger.warning(
+            "rate_limit_check_failed",
+            error=str(exc),
+            user_id=str(user_id),
+            fail_open=settings.rate_limiter_fail_open,
+        )
+        return settings.rate_limiter_fail_open
+    return allowed
