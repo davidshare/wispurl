@@ -11,6 +11,19 @@ from app.services.shortcode import validate_short_code_path
 
 router = APIRouter(tags=["redirect"])
 
+# Open redirect to a user-supplied URL is INTENTIONAL here: this is a URL
+# shortener, so redirecting the end user's browser to long_url is the product.
+# It is kept safe by restricting long_url to http/https at creation time
+# (see app/schemas/link.py), so the redirect can never deliver a
+# javascript:/data:/file: payload. If a denylist or safe-browsing check is ever
+# wanted, gate it at creation time, not here on the hot redirect path.
+#
+# SSRF note: this service only redirects the end user's browser; it NEVER fetches
+# long_url server-side. If a future feature does fetch it (e.g. link previews,
+# title scraping, favicon fetch), that fetch MUST guard against SSRF by blocking
+# internal/link-local/metadata ranges (127.0.0.0/8, 169.254.0.0/16, 10/8,
+# 172.16/12, 192.168/16, ::1, fc00::/7) and resolving DNS before connecting.
+
 
 async def safe_log_click(
     *,

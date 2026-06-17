@@ -27,6 +27,10 @@ class CreateLinkRequest(StrictModel):
     @field_validator("long_url")
     @classmethod
     def validate_http_url(cls, value: AnyHttpUrl) -> AnyHttpUrl:
+        # Restrict to http/https so the (intentional) redirect cannot deliver a
+        # javascript:/data:/file:/ftp: payload to the end user's browser. This is
+        # the security boundary that makes the open-redirect-by-design safe; see
+        # the redirect route for the full open-redirect/SSRF rationale.
         if value.scheme not in {"http", "https"}:
             msg = "URL must use http or https"
             raise ValueError(msg)
