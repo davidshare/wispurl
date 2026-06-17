@@ -21,6 +21,18 @@ class ShortenerSettings(ServiceSettings):
     )
     # If the limiter is unreachable, allow the create (fail-open) by default.
     rate_limiter_fail_open: bool = Field(default=True, alias="RATE_LIMITER_FAIL_OPEN")
+    # RabbitMQ for publishing click events. When events are enabled the redirect
+    # publishes "link.clicked"; the legacy HTTP POST to Analytics is kept behind a
+    # separate flag as a fallback.
+    rabbitmq_url: str = Field(alias="RABBITMQ_URL")
+    events_publish_enabled: bool = Field(
+        default=True,
+        alias="EVENTS_PUBLISH_ENABLED",
+    )
+    analytics_http_fallback: bool = Field(
+        default=False,
+        alias="ANALYTICS_HTTP_FALLBACK",
+    )
     # Hard cap on the fire-and-forget analytics call so it can never slow a redirect.
     analytics_request_timeout: float = Field(
         default=2.0,

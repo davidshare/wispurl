@@ -1,21 +1,13 @@
 [project]
-name = "shortener-service"
+name = "notification-service"
 version = "0.1.0"
-description = "Add your description here"
+description = "Queue-driven consumer that notifies on link.expired and link.milestone"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "aio-pika==9.5.7",
-    "alembic==1.18.4",
-    "fastapi==0.137.1",
-    "gunicorn==26.0.0",
-    "httpx==0.28.1",
-    "psycopg[binary]==3.3.4",
     "pydantic-settings==2.14.1",
-    "pyjwt==2.13.0",
-    "sqlalchemy==2.0.51",
     "structlog==26.1.0",
-    "uvicorn==0.49.0",
 ]
 
 [dependency-groups]
@@ -39,5 +31,4 @@ ignore = [
 [tool.mypy]
 python_version = "3.13"
 strict = true
-plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
-exclude = ["alembic/versions/"]
+plugins = ["pydantic.mypy"]

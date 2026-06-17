@@ -60,12 +60,17 @@ services:
       ANALYTICS_REQUEST_TIMEOUT: ${ANALYTICS_REQUEST_TIMEOUT:-2}
       RATE_LIMITER_REQUEST_TIMEOUT: ${RATE_LIMITER_REQUEST_TIMEOUT:-1}
       RATE_LIMITER_FAIL_OPEN: ${RATE_LIMITER_FAIL_OPEN:-true}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
+      EVENTS_PUBLISH_ENABLED: ${EVENTS_PUBLISH_ENABLED:-true}
+      ANALYTICS_HTTP_FALLBACK: ${ANALYTICS_HTTP_FALLBACK:-false}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8002:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test:
@@ -89,6 +94,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       MILESTONES: ${MILESTONES:-100,1000,10000}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     # No published ports: /events is internal-only and /stats is reached through
@@ -108,6 +114,55 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  # Queue-driven consumer: the SAME analytics image, run as a different process
+  # (python -m app.worker) instead of the API. Consumes analytics.clicks, writes
+  # click_events, and publishes link.milestone events.
+  analytics-consumer:
+    build:
+      context: ./analytics-service
+    entrypoint: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: ${ANALYTICS_DATABASE_URL}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      MILESTONES: ${MILESTONES:-100,1000,10000}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  cleanup-service:
+    build:
+      context: ./cleanup-service
+    environment:
+      DATABASE_URL: ${SHORTENER_DATABASE_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
+      CLEANUP_INTERVAL_SECONDS: ${CLEANUP_INTERVAL_SECONDS:-60}
+      BATCH_SIZE: ${BATCH_SIZE:-500}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    # Becomes a Kubernetes CronJob in the DevOps phase (Prompt 10) — no long-running
+    # loop there. Here it loops with a sleep as a plain Compose container.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: ./notification-service
+    environment:
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
+      NOTIFY_CHANNEL: ${NOTIFY_CHANNEL:-log}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   rate-limiter-service:
     build:
@@ -216,8 +271,10 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+      # Non-default creds: RabbitMQ's built-in "guest" user may only connect from
+      # localhost, so services on the Docker network must authenticate as a real user.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-appuser}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-apppass}
     ports:
       - "5672:5672"
       - "15672:15672"

@@ -23,6 +23,7 @@ from app.errors.exceptions import (
 )
 from app.routes.links import router as links_router
 from app.routes.redirect import router as redirect_router
+from shared import messaging
 from shared.logging_config import (
     bind_request_id,
     clear_request_context,
@@ -45,7 +46,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     timeout = httpx.Timeout(settings.analytics_request_timeout)
     async with httpx.AsyncClient(timeout=timeout) as client:
         app.state.http_client = client
-        yield
+        app.state.event_publisher = None
+        connection = None
+        if settings.events_publish_enabled:
+            try:
+                connection = await messaging.connect(settings.rabbitmq_url)
+                app.state.event_publisher = await messaging.create_publisher(
+                    connection,
+                )
+            except Exception as exc:
+                # Degrade gracefully: the redirect's publish is fire-and-forget, so
+                # a broker that is down at startup must not stop the service.
+                logger.warning("event_publisher_unavailable", error=str(exc))
+        try:
+            yield
+        finally:
+            if connection is not None:
+                await connection.close()
 
 
 async def handle_domain_error(request: Request, exc: Exception) -> StarletteResponse:

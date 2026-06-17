@@ -24,6 +24,9 @@ class AnalyticsSettings(ServiceSettings):
     # consumer) in the X-Internal-Key header. Required so click data cannot be forged.
     internal_api_key: str = Field(alias="INTERNAL_API_KEY")
 
+    # RabbitMQ for the click-event consumer and milestone publishing.
+    rabbitmq_url: str = Field(alias="RABBITMQ_URL")
+
     # Click-count thresholds that the notification flow (Prompt 8) will alert on.
     # Stored here so the value lives in config; analytics does not act on it yet.
     milestones: str = Field(default="100,1000,10000", alias="MILESTONES")

@@ -10,6 +10,11 @@ from app.dependencies import SessionDep, SettingsDep
 from app.services.analytics import ClickMetadata, log_click
 from app.services.link_service import LinkService
 from app.services.shortcode import validate_short_code_path
+from shared.messaging import (
+    ROUTING_KEY_LINK_CLICKED,
+    EventPublisher,
+    build_envelope,
+)
 
 logger = structlog.get_logger()
 
@@ -66,6 +71,35 @@ async def safe_log_click(
         logger.warning("click_log_failed", short_code=short_code, error=str(exc))
 
 
+async def safe_publish_click(
+    *,
+    publisher: EventPublisher,
+    short_code: str,
+    metadata: ClickMetadata,
+    request_id: str | None,
+) -> None:
+    """Fail-open wrapper that publishes a ``link.clicked`` event.
+
+    Runs in a background task after the redirect is sent. A broker outage (or any
+    publish error) is logged and swallowed: the click may be dropped — the
+    documented tradeoff — but the already-sent redirect is never affected.
+    """
+    try:
+        envelope = build_envelope(
+            event=ROUTING_KEY_LINK_CLICKED,
+            data={
+                "short_code": short_code,
+                "ip_address": metadata.ip_address,
+                "referrer": metadata.referrer,
+                "user_agent": metadata.user_agent,
+            },
+            request_id=request_id,
+        )
+        await publisher.publish(envelope, routing_key=ROUTING_KEY_LINK_CLICKED)
+    except Exception as exc:
+        logger.warning("click_publish_failed", short_code=short_code, error=str(exc))
+
+
 @router.get("/{short_code}", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 async def redirect_short_code(
     short_code: str,
@@ -82,13 +116,33 @@ async def redirect_short_code(
         referrer=request.headers.get("referer"),
         user_agent=request.headers.get("user-agent"),
     )
-    background_tasks.add_task(
-        safe_log_click,
-        client=request.app.state.http_client,
-        short_code=validated_code,
-        metadata=metadata,
-        settings=settings,
+    request_id = request.headers.get("x-request-id")
+
+    # Preferred path: publish a "link.clicked" event to RabbitMQ (decoupled).
+    publisher: EventPublisher | None = getattr(
+        request.app.state,
+        "event_publisher",
+        None,
     )
+    if settings.events_publish_enabled and publisher is not None:
+        background_tasks.add_task(
+            safe_publish_click,
+            publisher=publisher,
+            short_code=validated_code,
+            metadata=metadata,
+            request_id=request_id,
+        )
+
+    # Optional legacy fallback: direct HTTP POST to Analytics (off by default).
+    if settings.analytics_http_fallback:
+        background_tasks.add_task(
+            safe_log_click,
+            client=request.app.state.http_client,
+            short_code=validated_code,
+            metadata=metadata,
+            settings=settings,
+        )
+
     response = RedirectResponse(
         url=link.long_url,
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,

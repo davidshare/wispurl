@@ -5,6 +5,7 @@ description = "Analytics service: ingests click events and serves aggregated sta
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "aio-pika==9.5.7",
     "alembic==1.18.4",
     "fastapi==0.137.1",
     "gunicorn==26.0.0",
