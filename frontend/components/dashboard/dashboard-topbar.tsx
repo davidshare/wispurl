@@ -1,12 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Plus } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CreateLinkButton } from "@/components/dashboard/create-link-button";
 import { pageTitle } from "@/components/dashboard/nav";
 
 export function DashboardTopbar() {
@@ -20,14 +18,7 @@ export function DashboardTopbar() {
       <h1 className="font-heading text-lg font-medium">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2">
-        {/* The create-link dialog is wired in the next step (3b). */}
-        <Button
-          variant="signal"
-          onClick={() => toast.info("Link creation arrives in the next step.")}
-        >
-          <Plus className="size-4" />
-          Create link
-        </Button>
+        <CreateLinkButton />
         <ThemeToggle />
       </div>
     </header>

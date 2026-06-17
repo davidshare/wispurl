@@ -2,12 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { REFRESH_COOKIE } from "@/lib/auth/constants";
 
 /**
- * Edge guard for the cookie path: if there's no refresh cookie, the visitor has no
- * resumable session, so /dashboard is redirected to /login (preserving the intended
- * path in `next`) before the page even loads. When the cookie is present, the
- * request proceeds and the in-memory client guard does a silent refresh.
+ * Edge guard for the cookie path (Next 16 "proxy" convention, formerly middleware).
+ * If there's no refresh cookie, the visitor has no resumable session, so the
+ * authenticated routes are redirected to /login (preserving the intended path in
+ * `next`) before the page loads. When the cookie is present, the request proceeds
+ * and the in-memory client guard does a silent refresh.
  */
-export function middleware(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   if (request.cookies.has(REFRESH_COOKIE)) {
     return NextResponse.next();
   }
