@@ -42,25 +42,36 @@ HOP_BY_HOP_HEADERS: frozenset[str] = frozenset(
 )
 
 # Inbound request headers we refuse to relay verbatim:
-#   * host          -> httpx sets the correct Host for the upstream target.
-#   * x-request-id  -> replaced by the gateway's own correlation id.
-#   * x-user-id     -> trust-injection vector; identity comes only from the verified
-#                      JWT, never from a client-supplied header.
+#   * host             -> httpx sets the correct Host for the upstream target.
+#   * x-request-id     -> replaced by the gateway's own correlation id.
+#   * x-user-id        -> trust-injection vector; identity comes only from the
+#                         verified JWT, never from a client-supplied header.
+#   * x-forwarded-for  -> the gateway is the trust boundary, so it sets this from
+#                         the direct peer rather than trusting a client-supplied
+#                         chain (which a caller could spoof to forge a source IP).
 _DROP_REQUEST_HEADERS: frozenset[str] = HOP_BY_HOP_HEADERS | {
     "host",
     "x-request-id",
     "x-user-id",
+    "x-forwarded-for",
 }
 
 
 def _filter_request_headers(request: Request, request_id: str) -> list[tuple[str, str]]:
-    """Build the upstream request headers: drop unsafe ones, set our request id."""
+    """Build the upstream request headers: drop unsafe ones, set our own metadata.
+
+    Sets ``X-Request-ID`` to the gateway's correlation id and ``X-Forwarded-For`` to
+    the direct peer's IP so downstream services (e.g. the click-logging path to
+    Analytics) can attribute the real client rather than the gateway's own address.
+    """
     headers = [
         (key, value)
         for key, value in request.headers.items()
         if key.lower() not in _DROP_REQUEST_HEADERS
     ]
     headers.append(("x-request-id", request_id))
+    if request.client is not None:
+        headers.append(("x-forwarded-for", request.client.host))
     return headers
 
 

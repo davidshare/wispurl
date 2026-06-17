@@ -12,6 +12,13 @@ class ShortenerSettings(ServiceSettings):
     shortcode_max_retries: int = Field(default=5, alias="SHORTCODE_MAX_RETRIES")
     rate_limiter_url: AnyHttpUrl = Field(alias="RATE_LIMITER_URL")
     analytics_service_url: AnyHttpUrl = Field(alias="ANALYTICS_SERVICE_URL")
+    # Shared secret presented to the Analytics service's internal /events endpoint.
+    internal_api_key: str = Field(alias="INTERNAL_API_KEY")
+    # Hard cap on the fire-and-forget analytics call so it can never slow a redirect.
+    analytics_request_timeout: float = Field(
+        default=2.0,
+        alias="ANALYTICS_REQUEST_TIMEOUT",
+    )
     cors_allowed_origins: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
     default_page_limit: int = Field(default=50, alias="DEFAULT_PAGE_LIMIT")
     max_page_limit: int = Field(default=100, alias="MAX_PAGE_LIMIT")
