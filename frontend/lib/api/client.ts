@@ -1,22 +1,11 @@
 import { API_URL } from "@/lib/env";
+import { CSRF_HEADER, CSRF_VALUE } from "@/lib/auth/constants";
+import { decodeAccessSub } from "@/lib/auth/jwt";
+import { ApiError } from "@/lib/api/error";
 import { useAuthStore } from "@/stores/auth";
-import type { TokenPair } from "@/lib/api/types";
-
-/** A typed API error carrying the HTTP status and a parsed detail message. */
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
-  /** JSON body (serialized automatically). */
   json?: unknown;
-  /** Skip attaching the access token (used by the auth endpoints themselves). */
   auth?: boolean;
 }
 
@@ -26,46 +15,63 @@ async function parseError(response: Response): Promise<ApiError> {
     const body = (await response.json()) as { detail?: string };
     if (typeof body.detail === "string") detail = body.detail;
   } catch {
-    // non-JSON error body; keep the status text
+    // non-JSON body; keep the status text
   }
   return new ApiError(response.status, detail);
 }
 
-// Single-flight refresh: refresh tokens ROTATE on every use and reuse revokes the
-// whole family, so concurrent 401s must share ONE refresh call, never fire several.
-let refreshInFlight: Promise<string> | null = null;
-
-async function refreshAccessToken(): Promise<string> {
-  const { refreshToken, setTokens, clearSession } = useAuthStore.getState();
-  if (!refreshToken) throw new ApiError(401, "Not authenticated");
-
-  const response = await fetch(`${API_URL}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  if (!response.ok) {
-    clearSession();
-    throw await parseError(response);
+/**
+ * Silent refresh against the cookie-backed Next route. The refresh token lives in
+ * an httpOnly cookie, so this request carries no token in JS — the server reads the
+ * cookie, rotates it, and returns a fresh access token. Updates the store and
+ * returns success.
+ */
+export async function refreshSession(): Promise<boolean> {
+  const store = useAuthStore.getState();
+  try {
+    const response = await fetch("/api/auth/refresh", {
+      method: "POST",
+      headers: { [CSRF_HEADER]: CSRF_VALUE },
+    });
+    if (!response.ok) {
+      store.clear();
+      return false;
+    }
+    const data = (await response.json()) as { access_token: string };
+    // Keep the persisted user; fall back to the token's sub if we have none yet.
+    const sub = decodeAccessSub(data.access_token);
+    const user =
+      store.user ?? (sub ? { id: sub, email: "" } : null);
+    store.setSession({ user, accessToken: data.access_token });
+    return true;
+  } catch {
+    store.clear();
+    return false;
   }
-  const tokens = (await response.json()) as TokenPair;
-  setTokens({
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token,
-  });
-  return tokens.access_token;
 }
 
-function getRefreshedToken(): Promise<string> {
-  refreshInFlight ??= refreshAccessToken().finally(() => {
+// SINGLE-FLIGHT: all concurrent 401s await ONE refresh. The refresh token rotates
+// on every use and reuse revokes the whole family, so it must never be spent twice
+// in parallel — this shared promise guarantees exactly one refresh call at a time.
+let refreshInFlight: Promise<boolean> | null = null;
+
+function sharedRefresh(): Promise<boolean> {
+  refreshInFlight ??= refreshSession().finally(() => {
     refreshInFlight = null;
   });
   return refreshInFlight;
 }
 
+function redirectToLogin(): void {
+  if (typeof window === "undefined") return;
+  const next = encodeURIComponent(window.location.pathname);
+  window.location.assign(`/login?next=${next}`);
+}
+
 /**
- * Typed fetch wrapper: attaches the access token, transparently refreshes once on
- * a 401 (rotating the refresh token), and throws {@link ApiError} on failure.
+ * Typed fetch wrapper for data calls to the gateway. Attaches the in-memory access
+ * token; on a 401 it attempts ONE shared refresh and retries; if that fails it
+ * clears the session and redirects to /login.
  */
 export async function apiFetch<T>(
   path: string,
@@ -73,7 +79,7 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { json, auth = true, headers, ...init } = options;
 
-  const send = async (token: string | null): Promise<Response> => {
+  const send = (token: string | null): Promise<Response> => {
     const finalHeaders = new Headers(headers);
     if (json !== undefined) finalHeaders.set("Content-Type", "application/json");
     if (auth && token) finalHeaders.set("Authorization", `Bearer ${token}`);
@@ -87,8 +93,12 @@ export async function apiFetch<T>(
   let response = await send(auth ? useAuthStore.getState().accessToken : null);
 
   if (response.status === 401 && auth) {
-    const newToken = await getRefreshedToken();
-    response = await send(newToken);
+    const refreshed = await sharedRefresh();
+    if (!refreshed) {
+      redirectToLogin();
+      throw new ApiError(401, "Session expired");
+    }
+    response = await send(useAuthStore.getState().accessToken);
   }
 
   if (!response.ok) throw await parseError(response);

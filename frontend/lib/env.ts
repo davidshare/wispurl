@@ -8,3 +8,11 @@ export const API_URL =
 /** Public site origin, used for canonical URLs and Open Graph metadata. */
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+/**
+ * Gateway URL as seen FROM the Next.js server (route handlers). In Docker this is
+ * the internal hostname (http://gateway:8000); locally it falls back to the public
+ * URL. Distinct from API_URL, which the browser uses for direct data calls.
+ */
+export const GATEWAY_INTERNAL_URL =
+  process.env.GATEWAY_INTERNAL_URL ?? API_URL;

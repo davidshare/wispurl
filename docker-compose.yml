@@ -264,6 +264,10 @@ services:
         # NEXT_PUBLIC_* is inlined at build time; it must be the URL the BROWSER
         # uses to reach the gateway (the host), not the internal Docker hostname.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    environment:
+      # Used at runtime by the Next auth route handlers (server-to-gateway), so it
+      # uses the internal Docker hostname, not the browser-facing host URL.
+      GATEWAY_INTERNAL_URL: ${GATEWAY_INTERNAL_URL:-http://gateway:8000}
     ports:
       - "3000:3000"
     depends_on:

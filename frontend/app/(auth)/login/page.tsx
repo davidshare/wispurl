@@ -1,26 +1,20 @@
-import Link from "next/link";
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { LoginForm } from "@/components/auth/login-form";
 
-/** Stub route — the real login form is built in a later prompt. */
+export const metadata: Metadata = {
+  title: "Log in",
+  robots: { index: false, follow: false },
+};
+
 export default function LoginPage() {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col items-start justify-center gap-3 px-6">
-      <h1 className="font-heading text-h2 font-bold">Log in</h1>
-      <p className="text-sm text-muted-foreground">
-        Coming soon. Need an account?{" "}
-        <Link
-          href="/signup"
-          className="text-foreground underline underline-offset-4"
-        >
-          Get started
-        </Link>
-        .
-      </p>
-      <Link
-        href="/"
-        className="text-sm text-muted-foreground underline underline-offset-4"
-      >
-        Back home
-      </Link>
-    </div>
+    <Suspense
+      fallback={
+        <div className="h-80 w-full animate-pulse rounded-2xl border border-border bg-card" />
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
