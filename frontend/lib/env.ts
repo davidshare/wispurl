@@ -5,6 +5,9 @@
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
+/** API version prefix for every gateway endpoint (the short-link redirect is not versioned). */
+export const API_PREFIX = "/v1";
+
 /** Public site origin, used for canonical URLs and Open Graph metadata. */
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";

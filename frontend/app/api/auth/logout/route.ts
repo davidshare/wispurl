@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { GATEWAY_INTERNAL_URL } from "@/lib/env";
+import { API_PREFIX, GATEWAY_INTERNAL_URL } from "@/lib/env";
 import {
   CSRF_HEADER,
   CSRF_VALUE,
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
   if (refreshToken) {
     try {
-      await fetch(`${GATEWAY_INTERNAL_URL}/auth/logout`, {
+      await fetch(`${GATEWAY_INTERNAL_URL}${API_PREFIX}/auth/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: refreshToken }),

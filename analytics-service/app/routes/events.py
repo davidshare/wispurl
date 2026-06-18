@@ -17,7 +17,7 @@ router = APIRouter(tags=["events"])
 
 
 @router.post(
-    "/events",
+    "/v1/events",
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[Depends(require_internal_key)],
 )

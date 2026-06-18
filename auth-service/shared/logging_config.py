@@ -4,14 +4,34 @@ from typing import Any
 
 import structlog
 
+# Keys whose values are redacted wherever they appear (top-level or nested).
 SECRET_KEYS = {
+    "access_token",
+    "api_key",
+    "authorization",
+    "cookie",
+    "internal_api_key",
+    "jwt_secret",
     "password",
     "refresh_token",
-    "access_token",
-    "authorization",
+    "secret",
+    "set-cookie",
+    "smtp_password",
     "token",
-    "jwt_secret",
+    "x-internal-key",
 }
+
+
+def _scrub_value(value: Any) -> Any:
+    """Recurse into dicts/lists, redacting any value under a secret-named key."""
+    if isinstance(value, dict):
+        return {
+            key: ("[redacted]" if key.lower() in SECRET_KEYS else _scrub_value(val))
+            for key, val in value.items()
+        }
+    if isinstance(value, list):
+        return [_scrub_value(item) for item in value]
+    return value
 
 
 def _scrub_secrets(
@@ -19,9 +39,12 @@ def _scrub_secrets(
     _method_name: str,
     event_dict: dict[str, Any],
 ) -> dict[str, Any]:
+    """structlog processor: redact secret-named keys, recursing into nested values."""
     for key in list(event_dict):
         if key.lower() in SECRET_KEYS:
             event_dict[key] = "[redacted]"
+        else:
+            event_dict[key] = _scrub_value(event_dict[key])
     return event_dict
 
 

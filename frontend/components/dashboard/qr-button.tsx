@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { API_URL } from "@/lib/env";
+import { API_PREFIX, API_URL } from "@/lib/env";
 
 /** QR action: a dialog showing GET /qr/{short_code} as an image, with a download. */
 export function QrButton({
@@ -23,7 +23,7 @@ export function QrButton({
   shortCode: string;
   shortUrl: string;
 }) {
-  const src = `${API_URL}/qr/${shortCode}`;
+  const src = `${API_URL}${API_PREFIX}/qr/${shortCode}`;
 
   const onDownload = async () => {
     try {

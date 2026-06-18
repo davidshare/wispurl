@@ -21,7 +21,7 @@ _PROXY_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 
 @router.api_route(
-    "/stats/{path:path}",
+    "/v1/stats/{path:path}",
     methods=_PROXY_METHODS,
     dependencies=[Depends(get_current_user_id)],
 )

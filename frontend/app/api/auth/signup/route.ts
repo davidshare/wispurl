@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { GATEWAY_INTERNAL_URL } from "@/lib/env";
+import { API_PREFIX, GATEWAY_INTERNAL_URL } from "@/lib/env";
 import { CSRF_HEADER, CSRF_VALUE } from "@/lib/auth/constants";
 import { setAuthCookies } from "@/lib/auth/cookies";
 import { decodeAccessSub } from "@/lib/auth/jwt";
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   const { email, password } = body;
 
   try {
-    const signupRes = await fetch(`${GATEWAY_INTERNAL_URL}/auth/signup`, {
+    const signupRes = await fetch(`${GATEWAY_INTERNAL_URL}${API_PREFIX}/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Account created — establish a session via login.
-    const loginRes = await fetch(`${GATEWAY_INTERNAL_URL}/auth/login`, {
+    const loginRes = await fetch(`${GATEWAY_INTERNAL_URL}${API_PREFIX}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),

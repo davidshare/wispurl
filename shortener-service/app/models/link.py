@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, Index, String, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,3 +30,13 @@ class Link(Base):
         nullable=True,
     )
     is_active: Mapped[bool] = mapped_column(default=True, server_default="true")
+
+    # Partial index supporting the Cleanup service's expiry sweep
+    # (WHERE is_active AND expires_at < now()) so it never seq-scans the table.
+    __table_args__ = (
+        Index(
+            "ix_links_active_expiry",
+            "expires_at",
+            postgresql_where=text("is_active"),
+        ),
+    )

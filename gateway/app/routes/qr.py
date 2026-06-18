@@ -18,7 +18,7 @@ from app.proxy import proxy
 router = APIRouter(tags=["qr"])
 
 
-@router.get("/qr/{path:path}")
+@router.get("/v1/qr/{path:path}")
 async def proxy_qr(path: str, request: Request) -> StreamingResponse:
     """Forward ``GET /qr/<path>`` to the QR service; public (no token required)."""
     settings = get_settings()

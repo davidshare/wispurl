@@ -55,7 +55,15 @@ async def handle_validation_error(
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Open one shared async Redis client for the process lifetime."""
     settings = get_settings()
-    redis: Redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    # Bounded socket timeouts so a hung/unreachable Redis can't block a worker
+    # indefinitely; a periodic health check recycles dead connections.
+    redis: Redis = Redis.from_url(
+        settings.redis_url,
+        decode_responses=True,
+        socket_timeout=2.0,
+        socket_connect_timeout=2.0,
+        health_check_interval=30,
+    )
     app.state.redis = redis
     logger.info("rate_limiter_started")
     try:

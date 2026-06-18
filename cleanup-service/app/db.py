@@ -24,7 +24,22 @@ from sqlalchemy.ext.asyncio import (
 from app.config import get_settings
 
 settings = get_settings()
-engine: AsyncEngine = create_async_engine(settings.database_url, pool_pre_ping=True)
+# Small bounded pool + server-side timeouts: this is a low-frequency batch worker,
+# so it needs very few connections, and a wedged sweep UPDATE must not hold locks
+# on short_db indefinitely.
+engine: AsyncEngine = create_async_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    pool_size=2,
+    max_overflow=2,
+    pool_recycle=1800,
+    connect_args={
+        "options": (
+            "-c statement_timeout=30000 "
+            "-c idle_in_transaction_session_timeout=60000"
+        ),
+    },
+)
 SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 metadata = MetaData()

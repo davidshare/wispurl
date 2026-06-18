@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CheckRequest(BaseModel):
@@ -19,7 +19,7 @@ class CheckRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     user_id: UUID
-    action: str
+    action: str = Field(max_length=64)
 
 
 class CheckResponse(BaseModel):

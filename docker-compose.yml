@@ -1,6 +1,18 @@
 services:
   postgres:
     image: postgres:16
+    # Server-side safety nets applied to every connection from every service:
+    # cap query/idle-transaction duration and raise the connection ceiling above
+    # the sum of all services' bounded pools. (Production should still front this
+    # with PgBouncer in transaction mode.)
+    command:
+      - "postgres"
+      - "-c"
+      - "statement_timeout=30000"
+      - "-c"
+      - "idle_in_transaction_session_timeout=60000"
+      - "-c"
+      - "max_connections=200"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}

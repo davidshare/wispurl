@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/client";
+import { API_PREFIX } from "@/lib/env";
 import { queryKeys } from "@/lib/query/query-keys";
 import type { Stats } from "@/lib/api/types";
 
@@ -7,7 +8,7 @@ import type { Stats } from "@/lib/api/types";
 export function statsQueryOptions(shortCode: string) {
   return {
     queryKey: queryKeys.stats.detail(shortCode),
-    queryFn: () => apiFetch<Stats>(`/stats/${shortCode}`),
+    queryFn: () => apiFetch<Stats>(`${API_PREFIX}/stats/${shortCode}`),
   };
 }
 

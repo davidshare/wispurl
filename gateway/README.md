@@ -19,14 +19,17 @@ correct internal service, and faithfully forwards the request and response.
 
 ## Routes
 
-| Path                    | Upstream            | Auth     |
-| ----------------------- | ------------------- | -------- |
-| `GET /health`           | gateway (local)     | public   |
-| `/auth/{path}`          | Auth service        | public   |
-| `/links`, `/links/{p}`  | Shortener service   | required |
-| `/stats/{path}`         | Analytics service   | required |
-| `/qr/{path}`            | QR service          | public   |
-| `GET /{short_code}`     | Shortener service   | public   |
+All API endpoints are versioned under `/v1` (the short-link redirect and `/health`
+are intentionally unversioned).
+
+| Path                         | Upstream            | Auth     |
+| ---------------------------- | ------------------- | -------- |
+| `GET /health`                | gateway (local)     | public   |
+| `/v1/auth/{path}`            | Auth service        | public   |
+| `/v1/links`, `/v1/links/{p}` | Shortener service   | required |
+| `/v1/stats/{path}`           | Analytics service   | required |
+| `/v1/qr/{path}`              | QR service          | public   |
+| `GET /{short_code}`          | Shortener service   | public   |
 
 ## Configuration
 

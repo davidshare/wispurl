@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { GATEWAY_INTERNAL_URL } from "@/lib/env";
+import { API_PREFIX, GATEWAY_INTERNAL_URL } from "@/lib/env";
 import {
   CSRF_HEADER,
   CSRF_VALUE,
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   let upstream: Response;
   try {
-    upstream = await fetch(`${GATEWAY_INTERNAL_URL}/auth/refresh`, {
+    upstream = await fetch(`${GATEWAY_INTERNAL_URL}${API_PREFIX}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),

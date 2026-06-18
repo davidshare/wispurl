@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api/client";
+import { API_PREFIX } from "@/lib/env";
 import { queryKeys } from "@/lib/query/query-keys";
 import type { Link, LinkList } from "@/lib/api/types";
 
@@ -19,7 +20,9 @@ export function useLinks(params: { limit: number; offset: number }) {
   return useQuery({
     queryKey: queryKeys.links.list(params),
     queryFn: () =>
-      apiFetch<LinkList>(`/links?limit=${params.limit}&offset=${params.offset}`),
+      apiFetch<LinkList>(
+        `${API_PREFIX}/links?limit=${params.limit}&offset=${params.offset}`,
+      ),
   });
 }
 
@@ -39,7 +42,7 @@ export function useCreateLink() {
 
   return useMutation<Link, Error, CreateLinkInput, MutationContext>({
     mutationFn: (input) =>
-      apiFetch<Link>("/links", { method: "POST", json: input }),
+      apiFetch<Link>(`${API_PREFIX}/links`, { method: "POST", json: input }),
 
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.links.all });
@@ -123,7 +126,9 @@ export function useDeleteLink() {
       let undone = false;
       const timer = setTimeout(() => {
         if (undone) return;
-        void apiFetch<void>(`/links/${link.id}`, { method: "DELETE" }).catch(
+        void apiFetch<void>(`${API_PREFIX}/links/${link.id}`, {
+          method: "DELETE",
+        }).catch(
           () => {
             restore();
             toast.error("Couldn't delete the link — it's back.");

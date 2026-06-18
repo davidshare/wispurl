@@ -7,9 +7,12 @@ not the HTTP body.
 
 from __future__ import annotations
 
+import structlog
 from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+logger = structlog.get_logger()
 
 
 class GatewayDomainError(Exception):
@@ -79,9 +82,10 @@ async def validation_exception_handler(
 
 async def unhandled_exception_handler(
     _request: Request,
-    _exc: Exception,
+    exc: Exception,
 ) -> JSONResponse:
     """Catch-all handler so an unexpected error never leaks a stack trace."""
+    logger.error("unhandled_exception", error=str(exc), exc_info=exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error"},

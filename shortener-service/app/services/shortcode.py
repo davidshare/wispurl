@@ -15,6 +15,7 @@ RESERVED_SLUGS = {
     "links",
     "openapi.json",
     "redoc",
+    "v1",
 }
 
 

@@ -22,10 +22,15 @@ from collections.abc import Awaitable
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
+import structlog
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 
 from app.config import RateLimiterSettings
+from app.errors.exceptions import LimiterUnavailableError
 from app.schemas.check import CheckResponse
+
+logger = structlog.get_logger()
 
 # Atomic INCR + first-write EXPIRE, returning the new count and the key's TTL.
 # KEYS[1] = counter key, ARGV[1] = window length in seconds.
@@ -64,12 +69,18 @@ class RateLimiter:
         key = f"rl:{action}:{user_id}:{window_start}"
 
         # redis-py types eval() for the sync client; cast the call to its real async
-        # shape. The Lua script returns [count, ttl] as RESP integers.
-        eval_result = cast(
-            "Awaitable[list[int]]",
-            self._redis.eval(_INCR_AND_EXPIRE, 1, key, str(window)),
-        )
-        count, ttl = await eval_result
+        # shape. The Lua script returns [count, ttl] as RESP integers. A Redis
+        # outage/timeout surfaces as a deliberate 503 (LimiterUnavailableError)
+        # rather than an opaque 500, leaving the fail policy to the caller.
+        try:
+            eval_result = cast(
+                "Awaitable[list[int]]",
+                self._redis.eval(_INCR_AND_EXPIRE, 1, key, str(window)),
+            )
+            count, ttl = await eval_result
+        except RedisError as exc:
+            logger.warning("rate_limiter_redis_unavailable", error=str(exc))
+            raise LimiterUnavailableError from exc
 
         # Fall back to the full window if the TTL read raced to -1/-2 (key just set).
         seconds_remaining = ttl if ttl and ttl > 0 else window

@@ -28,6 +28,7 @@ DEFAULT_RESERVED_PREFIXES: frozenset[str] = frozenset(
         "docs",
         "redoc",
         "openapi.json",
+        "v1",
     },
 )
 
@@ -53,6 +54,9 @@ class GatewaySettings(ServiceSettings):
         default=30.0,
         alias="REQUEST_READ_TIMEOUT",
     )
+
+    # Max request body the gateway will forward (memory-exhaustion guard). 1 MiB.
+    max_body_bytes: int = Field(default=1_048_576, alias="MAX_BODY_BYTES")
 
     cors_allowed_origins: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")

@@ -10,7 +10,7 @@ from app.errors.exceptions import empty_response
 from app.schemas.link import CreateLinkRequest, LinkListResponse, LinkResponse
 from app.services.link_service import LinkService
 
-router = APIRouter(prefix="/links", tags=["links"])
+router = APIRouter(prefix="/v1/links", tags=["links"])
 
 
 @router.post("", response_model=LinkResponse, status_code=status.HTTP_201_CREATED)

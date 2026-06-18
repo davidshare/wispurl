@@ -37,7 +37,7 @@ async def log_click(
     NOTE: Prompt 8 replaces this synchronous HTTP call with publishing an event to
     RabbitMQ that the Analytics service consumes, fully decoupling the two.
     """
-    url = f"{str(settings.analytics_service_url).rstrip('/')}/events"
+    url = f"{str(settings.analytics_service_url).rstrip('/')}/v1/events"
     payload = {
         "short_code": short_code,
         "ip_address": metadata.ip_address,

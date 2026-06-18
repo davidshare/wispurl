@@ -19,7 +19,7 @@ router = APIRouter(tags=["check"])
 
 
 @router.post(
-    "/check",
+    "/v1/check",
     response_model=CheckResponse,
     dependencies=[Depends(require_internal_key)],
 )

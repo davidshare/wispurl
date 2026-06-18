@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+import structlog
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +33,8 @@ from app.security.tokens import (
     refresh_token_expiry,
 )
 
+logger = structlog.get_logger()
+
 
 class AuthService:
     def __init__(self, session: AsyncSession, settings: AuthSettings) -> None:
@@ -40,7 +44,10 @@ class AuthService:
         self._refresh_tokens = RefreshTokenRepository(session)
 
     async def signup(self, *, email: str, password: str) -> PublicUser:
-        hashed_password = hash_password(password, self._settings)
+        # Argon2 is CPU-heavy; run it in a thread so it doesn't block the loop.
+        hashed_password = await asyncio.to_thread(
+            hash_password, password, self._settings
+        )
         try:
             user = await self._users.create(
                 email=email.lower(),
@@ -50,28 +57,45 @@ class AuthService:
         except IntegrityError as exc:
             await self._session.rollback()
             # Keep the client response generic to reduce account enumeration signals.
+            logger.warning("signup_duplicate")
             raise DuplicateUserError from exc
+        logger.info("signup_succeeded", user_id=str(user.id))
         return PublicUser(id=user.id, email=user.email)
 
     async def login(self, *, email: str, password: str) -> TokenPair:
         user = await self._users.get_by_email(email.lower())
         if user is None:
-            run_dummy_verify(password, self._settings)
+            # Equalize timing against the real verify path; offload to a thread.
+            await asyncio.to_thread(run_dummy_verify, password, self._settings)
+            logger.warning("login_failed", reason="unknown_user")
             raise InvalidCredentialsError
         if not user.is_active:
-            run_dummy_verify(password, self._settings)
+            await asyncio.to_thread(run_dummy_verify, password, self._settings)
+            logger.warning(
+                "login_failed", reason="inactive_user", user_id=str(user.id)
+            )
             raise InactiveUserError
-        if not verify_password(password, user.hashed_password, self._settings):
+        password_ok = await asyncio.to_thread(
+            verify_password, password, user.hashed_password, self._settings
+        )
+        if not password_ok:
+            logger.warning(
+                "login_failed", reason="bad_password", user_id=str(user.id)
+            )
             raise InvalidCredentialsError
 
-        if password_needs_rehash(user.hashed_password, self._settings):
-            await self._users.update_password_hash(
-                user,
-                hash_password(password, self._settings),
+        needs_rehash = await asyncio.to_thread(
+            password_needs_rehash, user.hashed_password, self._settings
+        )
+        if needs_rehash:
+            new_hash = await asyncio.to_thread(
+                hash_password, password, self._settings
             )
+            await self._users.update_password_hash(user, new_hash)
 
         token_pair = await self._issue_token_pair(user=user, family_id=None)
         await self._session.commit()
+        logger.info("login_succeeded", user_id=str(user.id))
         return token_pair
 
     async def refresh(self, *, refresh_token: str) -> TokenPair:
@@ -81,8 +105,14 @@ class AuthService:
             raise InvalidRefreshTokenError
 
         if stored_token.revoked:
+            # Reuse of an already-rotated token => likely theft; kill the family.
             await self._refresh_tokens.revoke_family(stored_token.family_id)
             await self._session.commit()
+            logger.warning(
+                "refresh_reuse_detected",
+                user_id=str(stored_token.user_id),
+                family_id=str(stored_token.family_id),
+            )
             raise InvalidRefreshTokenError
 
         if stored_token.expires_at <= datetime.now(UTC):
@@ -102,6 +132,7 @@ class AuthService:
             family_id=stored_token.family_id,
         )
         await self._session.commit()
+        logger.info("refresh_succeeded", user_id=str(user.id))
         return token_pair
 
     async def logout(self, *, refresh_token: str) -> None:
@@ -109,6 +140,7 @@ class AuthService:
         stored_token = await self._refresh_tokens.get_by_hash(token_hash)
         if stored_token is not None and not stored_token.revoked:
             await self._refresh_tokens.revoke(stored_token)
+            logger.info("logout", user_id=str(stored_token.user_id))
         await self._session.commit()
 
     async def _issue_token_pair(

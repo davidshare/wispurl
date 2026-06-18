@@ -30,20 +30,20 @@ async def _forward_links(request: Request) -> StreamingResponse:
 
 
 @router.api_route(
-    "/links",
+    "/v1/links",
     methods=_PROXY_METHODS,
     dependencies=[Depends(get_current_user_id)],
 )
 async def proxy_links_root(request: Request) -> StreamingResponse:
-    """Forward ``/links`` (list/create) to the Shortener; token required."""
+    """Forward ``/v1/links`` (list/create) to the Shortener; token required."""
     return await _forward_links(request)
 
 
 @router.api_route(
-    "/links/{path:path}",
+    "/v1/links/{path:path}",
     methods=_PROXY_METHODS,
     dependencies=[Depends(get_current_user_id)],
 )
 async def proxy_links_path(path: str, request: Request) -> StreamingResponse:
-    """Forward ``/links/<path>`` (e.g. delete by id) to the Shortener; auth required."""
+    """Forward ``/v1/links/<path>`` (e.g. delete by id) to the Shortener; auth req."""
     return await _forward_links(request)

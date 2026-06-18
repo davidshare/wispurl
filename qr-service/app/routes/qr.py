@@ -29,7 +29,7 @@ router = APIRouter(tags=["qr"])
 _SHORT_CODE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
-@router.get("/qr/{short_code}")
+@router.get("/v1/qr/{short_code}")
 async def get_qr(
     short_code: str,
     query: Annotated[QrQuery, Query()],

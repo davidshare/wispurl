@@ -10,7 +10,22 @@ from sqlalchemy.ext.asyncio import (
 from app.config import get_settings
 
 settings = get_settings()
-engine: AsyncEngine = create_async_engine(settings.database_url, pool_pre_ping=True)
+# Bounded pool + server-side timeouts so a hung query/transaction can't pin a
+# connection (and its locks) indefinitely, and the per-instance connection count
+# stays predictable against the shared Postgres max_connections budget.
+engine: AsyncEngine = create_async_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=5,
+    pool_recycle=1800,
+    connect_args={
+        "options": (
+            "-c statement_timeout=30000 "
+            "-c idle_in_transaction_session_timeout=60000"
+        ),
+    },
+)
 SessionLocal = async_sessionmaker(
     bind=engine,
     autoflush=False,

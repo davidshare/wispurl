@@ -27,7 +27,7 @@ class InvalidShortCodeError(AnalyticsDomainError):
     client_message = "Invalid request"
 
 
-@router.get("/stats/{short_code}", response_model=StatsResponse)
+@router.get("/v1/stats/{short_code}", response_model=StatsResponse)
 async def get_stats(
     short_code: str,
     _current_user_id: CurrentUserIdDep,

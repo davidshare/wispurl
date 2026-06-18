@@ -14,7 +14,7 @@ from app.schemas.auth import (
 from app.schemas.token import TokenPair
 from app.services.auth_service import AuthService
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
 AbuseGuard = Annotated[None, Depends(local_abuse_guard)]
 

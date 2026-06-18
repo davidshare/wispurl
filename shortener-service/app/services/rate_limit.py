@@ -31,7 +31,7 @@ async def check_rate_limit(
     fail-open to false to fail CLOSED instead — the right choice when preventing
     abuse matters more than availability.
     """
-    url = f"{str(settings.rate_limiter_url).rstrip('/')}/check"
+    url = f"{str(settings.rate_limiter_url).rstrip('/')}/v1/check"
     try:
         response = await client.post(
             url,

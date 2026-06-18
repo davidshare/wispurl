@@ -73,7 +73,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         write=settings.request_read_timeout,
         pool=settings.request_connect_timeout,
     )
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+    # Bound the upstream connection pool so a flood of slow requests can't open
+    # unbounded sockets to internal services.
+    limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        follow_redirects=False,
+        limits=limits,
+    ) as client:
         app.state.http_client = client
         logger.info("gateway_started")
         yield
@@ -122,12 +129,29 @@ def create_app() -> FastAPI:
         request_id = request.headers.get("X-Request-ID", str(uuid4()))
         request.state.request_id = request_id
         bind_request_id(request_id)
+
+        # Reject oversized bodies up front (memory-exhaustion guard) when the
+        # client declares a Content-Length beyond the cap.
+        content_length = request.headers.get("content-length")
+        if content_length is not None and content_length.isdigit():
+            if int(content_length) > settings.max_body_bytes:
+                clear_request_context()
+                return JSONResponse(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    content={"detail": "Request body too large"},
+                )
+
         try:
             response = await call_next(request)
         finally:
             clear_request_context()
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=63072000; includeSubDomains"
+        )
         return response
 
     app.add_exception_handler(GatewayDomainError, handle_domain_error)

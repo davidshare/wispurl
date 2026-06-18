@@ -51,6 +51,9 @@ ROUTING_KEY_LINK_CLICKED = "link.clicked"
 ROUTING_KEY_LINK_EXPIRED = "link.expired"
 ROUTING_KEY_LINK_MILESTONE = "link.milestone"
 
+# Cap for the per-attempt retry backoff before a failed message is re-enqueued.
+_MAX_RETRY_BACKOFF_SECONDS = 5.0
+
 
 class EventEnvelope(BaseModel):
     """Versioned JSON event passed over the queue, validated on both ends."""
@@ -189,7 +192,14 @@ async def _republish_for_retry(
     queue_name: str,
     next_attempt: int,
 ) -> None:
-    """Re-enqueue a message to the tail of its queue with a bumped attempt count."""
+    """Re-enqueue a message to the tail of its queue with a bumped attempt count.
+
+    A capped exponential backoff is applied before re-enqueueing so a transient
+    downstream failure doesn't burn through all attempts in milliseconds (the
+    delay holds this consumer slot, which is acceptable for our low prefetch).
+    """
+    backoff = min(2.0 ** (next_attempt - 1), _MAX_RETRY_BACKOFF_SECONDS)
+    await asyncio.sleep(backoff)
     headers = dict(message.headers or {})
     headers["x-attempt"] = next_attempt
     await channel.default_exchange.publish(

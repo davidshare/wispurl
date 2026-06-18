@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
             clear_request_context()
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
-        if request.url.path.startswith("/stats"):
+        if request.url.path.startswith("/v1/stats"):
             response.headers["Cache-Control"] = "no-store"
         return response
 
