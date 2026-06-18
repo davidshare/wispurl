@@ -74,7 +74,10 @@ export function AppSidebar() {
                       tooltip={item.title}
                       className={ACTIVE_CLASSES}
                     >
-                      <Link href={item.href}>
+                      <Link
+                        href={item.href}
+                        aria-current={isActive ? "page" : undefined}
+                      >
                         <item.Icon />
                         <span>{item.title}</span>
                       </Link>

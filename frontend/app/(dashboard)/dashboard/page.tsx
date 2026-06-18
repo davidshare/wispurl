@@ -16,7 +16,7 @@ export default function DashboardPage() {
     <div className="space-y-8 p-6 md:p-8">
       <div className="space-y-3">
         <Eyebrow>Dashboard</Eyebrow>
-        <h1 className="font-heading text-display-lg font-bold">Overview</h1>
+        <h2 className="font-heading text-display-lg font-bold">Overview</h2>
       </div>
 
       {isPending ? (

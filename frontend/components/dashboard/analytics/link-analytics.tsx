@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,10 +8,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CopyButton } from "@/components/dashboard/copy-button";
 import { QrButton } from "@/components/dashboard/qr-button";
 import { LinkStatusBadge, formatDate } from "@/components/dashboard/link-status";
-import { ClicksChart } from "@/components/dashboard/analytics/clicks-chart";
 import { TopReferrers } from "@/components/dashboard/analytics/top-referrers";
 import { useLinks } from "@/lib/query/links";
 import { useStats } from "@/lib/query/stats";
+
+// Lazy-load the Recharts-based chart so its (heavy) bundle isn't in the route's
+// initial JS; a skeleton holds the space (no layout shift).
+const ClicksChart = dynamic(
+  () =>
+    import("@/components/dashboard/analytics/clicks-chart").then((m) => ({
+      default: m.ClicksChart,
+    })),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-64 w-full rounded-xl" />,
+  },
+);
 
 function BackLink() {
   return (
@@ -54,7 +67,7 @@ function Notice({ title, body }: { title: string; body: string }) {
     <div className="space-y-6 p-6 md:p-8">
       <BackLink />
       <div className="rounded-2xl border border-border bg-card p-10 text-center">
-        <h1 className="font-heading text-h2 font-bold">{title}</h1>
+        <h2 className="font-heading text-h2 font-bold">{title}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{body}</p>
       </div>
     </div>

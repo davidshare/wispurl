@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -50,11 +51,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Reading the per-request nonce (set in proxy.ts) opts rendering into dynamic so
+  // Next stamps its scripts with the nonce — required for the strict, no-inline CSP.
+  await headers();
+
   return (
     <html
       lang="en"

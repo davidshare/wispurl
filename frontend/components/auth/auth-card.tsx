@@ -3,6 +3,7 @@
 import * as React from "react";
 import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { DURATION, EASE_OUT } from "@/lib/motion";
 
 /**
  * Card wrapper for the auth forms: a subtle entrance (fade/rise) and a
@@ -26,7 +27,7 @@ export function AuthCard({
     if (shakeSignal > 0 && !reduceMotion) {
       void controls.start({
         x: [0, -8, 8, -6, 6, 0],
-        transition: { duration: 0.4, ease: "easeInOut" },
+        transition: { duration: DURATION.base, ease: "easeInOut" },
       });
     }
   }, [shakeSignal, reduceMotion, controls]);
@@ -35,7 +36,7 @@ export function AuthCard({
     <motion.div
       initial={reduceMotion ? false : { opacity: 0, y: 12 }}
       animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: DURATION.base, ease: EASE_OUT }}
     >
       <motion.div
         animate={controls}

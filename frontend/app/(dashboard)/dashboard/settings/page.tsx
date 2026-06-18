@@ -39,7 +39,7 @@ export default function SettingsPage() {
     <div className="max-w-2xl space-y-8 p-6 md:p-8">
       <div className="space-y-3">
         <Eyebrow>Settings</Eyebrow>
-        <h1 className="font-heading text-display-lg font-bold">Settings</h1>
+        <h2 className="font-heading text-display-lg font-bold">Settings</h2>
       </div>
 
       <Card>

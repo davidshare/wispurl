@@ -30,9 +30,7 @@ export default function AuthLayout({
           </p>
           <CompressionMeter className="max-w-xs" loop />
         </div>
-        <p className="font-mono text-xs text-muted-foreground">
-          wisp.url/<span className="text-signal">launch</span>
-        </p>
+        <div aria-hidden />
       </aside>
 
       {/* Form card on paper */}

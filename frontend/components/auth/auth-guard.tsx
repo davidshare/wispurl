@@ -36,7 +36,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!authenticated) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center px-6">
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex min-h-[60vh] items-center justify-center px-6"
+      >
         <div className="w-full max-w-xs space-y-3 text-center">
           <p className="font-mono text-sm text-muted-foreground">
             Restoring your session…

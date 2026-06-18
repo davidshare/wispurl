@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { DURATION, EASE_OUT } from "@/lib/motion";
 
 /**
  * Compression meter: a thin 2px bar that fills left-to-right. The platform's
@@ -14,7 +15,7 @@ import { cn } from "@/lib/utils";
 export function CompressionMeter({
   className,
   loop = false,
-  duration = 1.1,
+  duration = DURATION.meter,
 }: {
   className?: string;
   loop?: boolean;
@@ -39,7 +40,7 @@ export function CompressionMeter({
           animate={{ scaleX: 1 }}
           transition={{
             duration,
-            ease: [0.22, 1, 0.36, 1],
+            ease: EASE_OUT,
             repeat: loop ? Infinity : 0,
             repeatType: "loop",
           }}
