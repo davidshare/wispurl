@@ -29,7 +29,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Wordmark } from "@/components/marketing/wordmark";
-import { DASHBOARD_NAV } from "@/components/dashboard/nav";
+import { DASHBOARD_NAV, activeNavHref } from "@/components/dashboard/nav";
 import { logout } from "@/lib/api/auth";
 import { useAuthStore } from "@/stores/auth";
 
@@ -41,6 +41,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const activeHref = activeNavHref(pathname);
 
   const email = user?.email || "Account";
   const initial = (user?.email?.[0] ?? "w").toUpperCase();
@@ -64,9 +65,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {DASHBOARD_NAV.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  pathname.startsWith(`${item.href}/`);
+                const isActive = item.href === activeHref;
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton

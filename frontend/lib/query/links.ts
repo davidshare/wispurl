@@ -1,7 +1,12 @@
+import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { apiFetch } from "@/lib/api/client";
 import { queryKeys } from "@/lib/query/query-keys";
 import type { Link, LinkList } from "@/lib/api/types";
+
+// Window during which a delete can be undone before the API call actually fires.
+const UNDO_WINDOW_MS = 5000;
 
 export interface CreateLinkInput {
   long_url: string;
@@ -84,4 +89,61 @@ export function useCreateLink() {
       );
     },
   });
+}
+
+/**
+ * Returns a `deleteLink(link)` function with an undo-friendly flow: the row is
+ * removed from the cache immediately and a toast offers "Undo" for a few seconds.
+ * The DELETE request only fires once that window elapses; undo cancels it and
+ * restores the cache. A failed request also restores the row.
+ */
+export function useDeleteLink() {
+  const queryClient = useQueryClient();
+
+  return useCallback(
+    (link: Link) => {
+      const previous = queryClient.getQueriesData<LinkList>({
+        queryKey: queryKeys.links.all,
+      });
+      queryClient.setQueriesData<LinkList>(
+        { queryKey: queryKeys.links.all },
+        (old) =>
+          old
+            ? {
+                ...old,
+                items: old.items.filter((item) => item.id !== link.id),
+                total: Math.max(0, old.total - 1),
+              }
+            : old,
+      );
+
+      const restore = () =>
+        previous.forEach(([key, data]) => queryClient.setQueryData(key, data));
+
+      let undone = false;
+      const timer = setTimeout(() => {
+        if (undone) return;
+        void apiFetch<void>(`/links/${link.id}`, { method: "DELETE" }).catch(
+          () => {
+            restore();
+            toast.error("Couldn't delete the link — it's back.");
+          },
+        );
+      }, UNDO_WINDOW_MS);
+
+      toast("Link deleted", {
+        description: link.short_url || link.short_code,
+        duration: UNDO_WINDOW_MS,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            undone = true;
+            clearTimeout(timer);
+            restore();
+          },
+        },
+      });
+    },
+    [queryClient],
+  );
 }

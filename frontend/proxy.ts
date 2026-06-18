@@ -18,17 +18,7 @@ export default function proxy(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-// The (dashboard) route group's pages live at top-level URLs (route groups don't
-// add a URL prefix), so each protected path is listed explicitly.
+// The entire authenticated app lives under /dashboard/*.
 export const config = {
-  matcher: [
-    "/dashboard",
-    "/dashboard/:path*",
-    "/links",
-    "/links/:path*",
-    "/analytics",
-    "/analytics/:path*",
-    "/settings",
-    "/settings/:path*",
-  ],
+  matcher: ["/dashboard", "/dashboard/:path*"],
 };
