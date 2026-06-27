@@ -1,0 +1,18 @@
+# .gitleaksignore
+#
+# Use this file to suppress specific findings that are confirmed false positives.
+# Each line is a SHA256 fingerprint of a finding — gitleaks prints these when it
+# reports a secret. Copy the fingerprint here to silence it permanently.
+#
+# Format:
+#   <fingerprint>  # optional human-readable note
+#
+# How to get a fingerprint:
+#   gitleaks detect -f json -r /tmp/report.json
+#   cat /tmp/report.json | python3 -m json.tool | grep Fingerprint
+#
+# Example (not real — replace with actual fingerprints from your scan):
+#   abc123def456...  # fake AWS key in docs/examples/aws-config-example.md
+#
+# IMPORTANT: Only add fingerprints for values you have personally verified
+# are not real secrets. Never add a fingerprint just to make CI pass.

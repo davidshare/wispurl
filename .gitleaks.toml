@@ -1,0 +1,136 @@
+title = "Monorepo Gitleaks Config"
+
+# Extend the default ruleset rather than replacing it.
+# Default rules cover 160+ secret types (AWS, GCP, Stripe, GitHub, JWTs, etc.)
+[extend]
+useDefault = true
+
+# ─────────────────────────────────────────────
+# Global allowlist: paths and patterns that are safe to ignore
+# ─────────────────────────────────────────────
+[allowlist]
+description = "Ignore generated files, lockfiles, migrations, and known false positives"
+
+paths = [
+    # Python virtual environments
+    '''(^|/)\.venv/''',
+    '''(^|/)venv/''',
+    '''(^|/)__pycache__/''',
+
+    # Node / Next.js generated output
+    '''(^|/)node_modules/''',
+    '''(^|/)\.next/''',
+
+    # Lockfiles (contain hashes, not secrets)
+    '''(^|/)uv\.lock$''',
+    '''(^|/)package-lock\.json$''',
+    '''(^|/)yarn\.lock$''',
+
+    # Alembic migration files (contain table/column defs, not secrets)
+    '''(^|/)alembic/versions/''',
+
+    # SVG and other binary/generated assets
+    '''\.svg$''',
+    '''\.ico$''',
+    '''(^|/)public/''',
+
+    # Example and template env files (intentionally fake values)
+    '''\.env\.example$''',
+    '''\.env\.template$''',
+    '''\.env\.sample$''',
+
+    # Test fixtures
+    '''(^|/)tests?/.*fixtures?/''',
+    '''(^|/)tests?/.*mock''',
+
+    # Docker and CI config rarely contain real secrets (they reference env vars)
+    # Remove this line if your docker-compose.yml ever hardcodes real values
+    # '''(^|/)docker-compose\.yml$''',
+]
+
+# Regex patterns to ignore globally (fake/example values)
+regexes = [
+    # Placeholder patterns commonly used in docs and examples
+    '''EXAMPLE[_\-]?[A-Z0-9_\-]+''',
+    '''your[_\-]?(secret|key|token|password)[_\-]?here''',
+    '''<(YOUR|MY)[_\-]?(SECRET|KEY|TOKEN|API)[_\-]?(HERE|KEY)?>''',
+    '''changeme''',
+    '''replace[_\-]?me''',
+    '''TODO[_\-]?SECRET''',
+
+    # JWT test tokens (the word "test" or "example" in the payload)
+    # These show up in auth service unit tests
+    '''eyJ[A-Za-z0-9_\-]+\.eyJ[A-Za-z0-9_\-]*dGVzdA[A-Za-z0-9_\-]+''',
+]
+
+# ─────────────────────────────────────────────
+# Stoplist: specific strings to never flag
+# Useful for fake DB URLs and test credentials in docker-compose
+# ─────────────────────────────────────────────
+stopwords = [
+    "localhost",
+    "127.0.0.1",
+    "postgres:postgres",
+    "mysecretpassword",   # Docker default - flag if you're using this in prod!
+    "changeme",
+    "secret_key_here",
+]
+
+# ─────────────────────────────────────────────
+# Custom rules for patterns specific to this project
+# ─────────────────────────────────────────────
+
+# Flag any hardcoded DATABASE_URL with real credentials.
+# Go's regexp package does not support negative lookaheads, so we match the
+# full pattern and use the rule-level allowlist to suppress localhost/dev URLs.
+[[rules]]
+id          = "hardcoded-db-url"
+description = "Hardcoded database connection string with credentials"
+regex       = '''(?i)(postgresql|postgres|mysql|mongodb)://[^:]+:[^@]{8,}@[^/\s"']+'''
+tags        = ["database", "credentials"]
+severity    = "critical"
+
+    [rules.allowlist]
+    description = "Ignore local dev and placeholder DB URLs"
+    regexes = [
+        # Local dev hosts
+        '''@localhost''',
+        '''@127\.0\.0\.1''',
+        '''@0\.0\.0\.0''',
+        # Docker Compose service names used as hostnames
+        '''@(db|postgres|mysql|mongodb|database)[:/?]''',
+        # Placeholder/example values
+        '''(?i)(changeme|password|secret|example|placeholder|yourpassword|mypassword)''',
+        # Environment variable references (not real secrets)
+        '''os\.getenv''',
+        '''\$\{[A-Z_]+\}''',
+        '''\$[A-Z_]+''',
+    ]
+
+# Flag hardcoded JWT secrets (common mistake in FastAPI apps)
+[[rules]]
+id          = "hardcoded-jwt-secret"
+description = "Hardcoded JWT secret key"
+regex       = '''(?i)(jwt[_\-]?secret|secret[_\-]?key)\s*[=:]\s*["']?[A-Za-z0-9+/]{32,}["']?'''
+tags        = ["jwt", "auth"]
+severity    = "critical"
+
+    [rules.allowlist]
+    # Don't flag environment variable references like: JWT_SECRET = os.getenv("JWT_SECRET")
+    regexes = [
+        '''os\.getenv''',
+        '''os\.environ''',
+        '''settings\.[A-Z_]+''',
+        '''config\.[A-Z_]+''',
+        '''getenv\(''',
+        '''\$\{[A-Z_]+\}''',
+        '''\$[A-Z_]+''',
+    ]
+
+# Flag any raw private key blocks that might slip through
+[[rules]]
+id          = "raw-private-key-block"
+description = "PEM private key block"
+regex       = '''-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'''
+tags        = ["key", "pem"]
+severity    = "critical"
