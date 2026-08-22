@@ -112,7 +112,8 @@ This project utilizes a centralized **Gitleaks security policy** along with a na
 ### Prerequisites
 
 Ensure you have the following installed on your host machine:
-* **Docker & Docker Compose**
+* **Docker & Docker Compose** (ensure the Docker daemon is running: `docker info`)
+* **OpenSSL** (for generating local TLS certificates)
 * **GNU Make** (Standard on macOS/Linux; available via `chocolatey` or `winget` on Windows)
 
 ### 1. Security & Hooks Initialization
@@ -121,25 +122,57 @@ Before writing code or executing commits, run the primary repository bootstrap c
 
 ```bash
 make setup
-
 ```
 
 * **To execute a manual deep scan** of the entire historical repository tree:
 ```bash
 make scan
-
 ```
-
 
 * **To safely uninstall** local security hooks and wipe configurations:
 ```bash
 make clean
-
 ```
 
+### 2. HashiCorp Vault Setup (Secrets Management)
 
+Vault is configured with integrated Raft storage, local TLS, and an automated unseal sidecar.
 
-### 2. Environment Configuration
+#### Prerequisites
+* Ensure Docker is actively running on your system (`docker info` should return server information).
+* OpenSSL is available to generate local CA and SAN certificates.
+
+#### Starting Vault
+1. **Generate TLS Certificates** (generates root CA and server certificates in `vault/tls/`):
+   ```bash
+   make vault-certs
+   ```
+2. **Start Vault and Unseal Sidecar**:
+   ```bash
+   make vault-up
+   ```
+3. **Monitor Automatic Unsealing**:
+   ```bash
+   docker logs -f vault-unseal
+   ```
+   *(Wait until the sidecar confirms initialization and unsealing)*
+4. **Verify Vault Status**:
+   ```bash
+   make vault-status
+   ```
+5. **Access the Vault Web UI**:
+   Open [https://127.0.0.1:8200/ui](https://127.0.0.1:8200/ui) (accept the local self-signed certificate).
+
+#### Vault Operational Commands
+| Command | Description |
+| --- | --- |
+| `make vault-up` | Generate certs and start Vault + auto-unseal sidecar |
+| `make vault-status` | Check if Vault is sealed/unsealed and view cluster details |
+| `make vault-unseal` | Re-run the unseal sidecar if Vault restarted and became sealed |
+| `make vault-snapshot` | Save a Raft snapshot backup to `vault/snapshots/` |
+| `make vault-down` | Stop Vault containers (data persists in `vault/data/`) |
+
+### 3. Environment Configuration
 
 WispURL relies on environment-driven variables to securely distribute secrets (like the shared JWT token validator) across isolated Docker container environments.
 
@@ -147,7 +180,6 @@ Duplicate the template file at the root level and inject cryptographically stron
 
 ```bash
 cp .env.example .env
-
 ```
 
 Open the newly created `.env` file and replace the default keys with secure placeholders:
@@ -155,10 +187,9 @@ Open the newly created `.env` file and replace the default keys with secure plac
 ```env
 JWT_SECRET=your_long_random_hmac_sha256_signing_key_here
 INTERNAL_API_KEY=your_secure_constant_time_internal_service_key_here
-
 ```
 
-### 3. Orchestration & Local Bootstrapping
+### 4. Orchestration & Local Bootstrapping
 
 With local git hooks initialized and environment boundaries defined, fire up the complete multi-database event-driven stack via Docker Compose.
 
@@ -166,7 +197,6 @@ The initial boot automatically invokes the database initializers inside `db/init
 
 ```bash
 docker compose up --build
-
 ```
 
 Once the logging stream stabilizes, verify accessibility across the critical system edge coordinates:
@@ -175,6 +205,7 @@ Once the logging stream stabilizes, verify accessibility across the critical sys
 | --- | --- | --- |
 | **Web UI Application** | `http://localhost:3000` | Frontend Next.js Client Dashboard |
 | **Hardened API Gateway** | `http://localhost:8080` | Core Public `/v1/*` Entry Routing |
+| **Vault Web UI** | `https://127.0.0.1:8200/ui` | HashiCorp Vault Secrets Management |
 | **Event Broker Console** | `http://localhost:15672` | RabbitMQ Management (`appuser` / `apppass`) |
 
 ### Published Ports
@@ -186,6 +217,7 @@ Once the logging stream stabilizes, verify accessibility across the critical sys
 | `8001` / `8002` | Auth / Shortener (direct, for debugging) |
 | `5432` / `6379` | Postgres / Redis |
 | `5672` / `15672` | RabbitMQ / management UI |
+| `8200` / `8201` | Vault API & UI / Vault Cluster |
 
 Analytics, QR, Rate Limiter, Cleanup, and Notification publish no host ports — they are reached only on the internal Docker network or through the gateway.
 
