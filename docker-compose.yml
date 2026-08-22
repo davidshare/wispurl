@@ -402,7 +402,11 @@ services:
         condition: service_completed_successfully
 
   vault:
-    image: hashicorp/vault:2.0.3
+    build:
+      context: ./vault
+      dockerfile: Dockerfile
+    image: wispurl-vault:latest
+    # image: hashicorp/vault:2.0.3
     container_name: vault
     restart: unless-stopped
   

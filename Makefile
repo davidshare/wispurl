@@ -174,7 +174,7 @@ vault-bootstrap:
 		-e VAULT_ADDR=https://127.0.0.1:8200 \
 		-e VAULT_CACERT=/vault/tls/ca.pem \
 		-e VAULT_TOKEN="$$TOKEN" \
-		vault sh /vault/vault-bootstrap.sh; \
+		vault bash /vault/vault-bootstrap.sh; \
 	docker exec vault rm -f /vault/.env /vault/vault-bootstrap.sh
 
 # Check Vault sealed/unsealed status.

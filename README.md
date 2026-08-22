@@ -160,7 +160,11 @@ Vault is configured with integrated Raft storage, local TLS, and an automated un
    ```bash
    make vault-status
    ```
-5. **Access the Vault Web UI**:
+5. **Bootstrap Secrets, Policies, and AppRoles** (seeds values from your `.env` — see [Environment Configuration](#3-environment-configuration)):
+   ```bash
+   make vault-bootstrap
+   ```
+6. **Access the Vault Web UI**:
    Open [https://127.0.0.1:8200/ui](https://127.0.0.1:8200/ui) (accept the local self-signed certificate).
 
 #### Vault Operational Commands
@@ -168,9 +172,12 @@ Vault is configured with integrated Raft storage, local TLS, and an automated un
 | --- | --- |
 | `make vault-up` | Generate certs and start Vault + auto-unseal sidecar |
 | `make vault-status` | Check if Vault is sealed/unsealed and view cluster details |
+| `make vault-bootstrap` | Seed secrets from `.env`, create ACL policies, and provision AppRoles for all services |
+| `make vault-env SERVICE=auth-service` | Export a service's Vault secrets into its local `<service>/.env` file |
 | `make vault-unseal` | Re-run the unseal sidecar if Vault restarted and became sealed |
 | `make vault-snapshot` | Save a Raft snapshot backup to `vault/snapshots/` |
 | `make vault-down` | Stop Vault containers (data persists in `vault/data/`) |
+| `make vault-clean` | Stop Vault and wipe all data, keys, logs, snapshots, and AppRoles |
 
 ### 3. Environment Configuration
 
@@ -188,6 +195,8 @@ Open the newly created `.env` file and replace the default keys with secure plac
 JWT_SECRET=your_long_random_hmac_sha256_signing_key_here
 INTERNAL_API_KEY=your_secure_constant_time_internal_service_key_here
 ```
+
+> **Note:** When you run `make vault-bootstrap`, your `.env` is temporarily copied into the Vault container to seed real credentials into the KV v2 engine. The file is automatically removed from the container after bootstrapping completes — no secrets persist inside the image.
 
 ### 4. Orchestration & Local Bootstrapping
 
