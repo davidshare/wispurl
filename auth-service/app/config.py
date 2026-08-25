@@ -4,10 +4,13 @@ from pydantic import Field, field_validator
 
 from shared.config import ServiceSettings
 
+from .vault_client import load_vault_secrets
+
 
 class AuthSettings(ServiceSettings):
     database_url: str = Field(alias="DATABASE_URL")
-    refresh_token_ttl_days: int = Field(default=7, alias="REFRESH_TOKEN_TTL_DAYS")
+    refresh_token_ttl_days: int = Field(
+        default=7, alias="REFRESH_TOKEN_TTL_DAYS")
     refresh_token_bytes: int = Field(default=48, alias="REFRESH_TOKEN_BYTES")
     argon2_time_cost: int = Field(default=2, alias="ARGON2_TIME_COST")
     argon2_memory_cost: int = Field(default=19_456, alias="ARGON2_MEMORY_COST")
@@ -68,4 +71,7 @@ class AuthSettings(ServiceSettings):
 
 @lru_cache
 def get_settings() -> AuthSettings:
+    vault_values = load_vault_secrets()
+    if vault_values:
+        return AuthSettings(**vault_values)
     return AuthSettings()

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# vault/generate-certs.sh
-#
+
 # Generates a self-signed CA and a Vault TLS certificate.
 # Run this ONCE before `make vault-up`.
 # Certs are written to vault/tls/ and are gitignored.
@@ -34,7 +33,11 @@ openssl genrsa -out "${TLS_DIR}/ca-key.pem" 4096 2>/dev/null
 openssl req -new -x509 -days 3650 \
 	-key "${TLS_DIR}/ca-key.pem" \
 	-out "${TLS_DIR}/ca.pem" \
-	-subj "/CN=vault-local-ca/O=wispurl-local" 2>/dev/null
+	-subj "/CN=vault-local-ca/O=wispurl-local" \
+	-addext "basicConstraints=critical,CA:TRUE,pathlen:1" \
+	-addext "keyUsage=critical,keyCertSign,cRLSign" \
+	-addext "subjectKeyIdentifier=hash" \
+	2>/dev/null
 
 # 2. Generate Vault server key
 openssl genrsa -out "${TLS_DIR}/vault-key.pem" 4096 2>/dev/null
@@ -47,19 +50,25 @@ openssl req -new \
 
 # 4. Create SAN extension file
 cat >"${TLS_DIR}/vault-ext.cnf" <<EOF
-[SAN]
+[server_cert]
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth
 subjectAltName=DNS:vault,DNS:localhost,IP:127.0.0.1
 EOF
 
 # 5. Sign the cert with our CA, including SANs
 openssl x509 -req -days 3650 \
-	-in "${TLS_DIR}/vault.csr" \
-	-CA "${TLS_DIR}/ca.pem" \
-	-CAkey "${TLS_DIR}/ca-key.pem" \
-	-CAcreateserial \
-	-out "${TLS_DIR}/vault-cert.pem" \
-	-extfile "${TLS_DIR}/vault-ext.cnf" \
-	-extensions SAN 2>/dev/null
+    -in "${TLS_DIR}/vault.csr" \
+    -CA "${TLS_DIR}/ca.pem" \
+    -CAkey "${TLS_DIR}/ca-key.pem" \
+    -CAcreateserial \
+    -out "${TLS_DIR}/vault-cert.pem" \
+    -extfile "${TLS_DIR}/vault-ext.cnf" \
+    -extensions server_cert \
+    2>/dev/null
+
+
 
 # 6. Clean up CSR and ext file (not needed after signing)
 rm -f "${TLS_DIR}/vault.csr" "${TLS_DIR}/vault-ext.cnf" "${TLS_DIR}/ca.srl"

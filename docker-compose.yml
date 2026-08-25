@@ -20,7 +20,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-postgres}"]
@@ -31,6 +31,8 @@ services:
     networks:
       - wispurl-network
     depends_on:
+      vault:
+        condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
 
@@ -38,6 +40,10 @@ services:
     build:
       context: ./auth-service
     environment:
+      VAULT_ADDR: https://vault:8200
+      VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
+      VAULT_CACERT: /run/secrets/vault-ca.pem
+      VAULT_SECRET_PATH: wispurl/auth-service
       DATABASE_URL: ${AUTH_DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
@@ -47,8 +53,15 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8001:8000"
+    secrets:
+      - source: auth-service-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     depends_on:
       postgres:
+        condition: service_healthy
+      vault:
         condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
@@ -88,10 +101,17 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8002:8000"
+    secrets:
+      - source: shortener-service-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      vault:
         condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
@@ -124,10 +144,17 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     # No published ports: /events is internal-only and /stats is reached through
     # the gateway. The service is reachable only on the internal Docker network.
+    secrets:
+      - source: analytics-service-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      vault:
         condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
@@ -166,6 +193,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      vault:
+        condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
     restart: unless-stopped
@@ -189,10 +218,17 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     # Becomes a Kubernetes CronJob in the DevOps phase (Prompt 10) — no long-running
     # loop there. Here it loops with a sleep as a plain Compose container.
+    secrets:
+      - source: cleanup-service-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      vault:
         condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
@@ -213,8 +249,15 @@ services:
       RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
       NOTIFY_CHANNEL: ${NOTIFY_CHANNEL:-log}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    secrets:
+      - source: notification-service-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      vault:
         condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
@@ -242,6 +285,8 @@ services:
     # No published ports: /check is internal-only, reached on the Docker network.
     depends_on:
       redis:
+        condition: service_healthy
+      vault:
         condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
@@ -272,7 +317,14 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    secrets:
+      - source: qr-service-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     depends_on:
+      vault:
+        condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
     # No published ports: reached through the gateway at /qr/*. Stateless, so it can
@@ -312,11 +364,18 @@ services:
     # services are reachable only on the internal Docker network.
     ports:
       - "8080:8000"
+    secrets:
+      - source: gateway-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     depends_on:
       auth-service:
         condition: service_started
       shortener-service:
         condition: service_started
+      vault:
+        condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
     healthcheck:
@@ -347,9 +406,16 @@ services:
       GATEWAY_INTERNAL_URL: ${GATEWAY_INTERNAL_URL:-http://gateway:8000}
     ports:
       - "3000:3000"
+    secrets:
+      - source: shortener-service-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     depends_on:
       gateway:
         condition: service_started
+      vault:
+        condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
     healthcheck:
@@ -374,6 +440,8 @@ services:
     networks:
       - wispurl-network
     depends_on:
+      vault:
+        condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
 
@@ -398,6 +466,8 @@ services:
     networks:
       - wispurl-network
     depends_on:
+      vault:
+        condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
 
@@ -471,6 +541,27 @@ services:
 
     networks:
       - wispurl-network
+
+secrets:
+  auth-service-approle:
+    file: ./vault/approles/auth-service.json
+  analytics-service-approle:
+    file: ./vault/approles/analytics-service.json
+  cleanup-service-approle:
+    file: ./vault/approles/cleanup-service.json
+  gateway-approle:
+    file: ./vault/approles/gateway.json
+  notification-service-approle:
+    file: ./vault/approles/notification-service.json
+  qr-service-approle:
+    file: ./vault/approles/qr-service.json  
+  rate-limiter-service-approle:
+    file: ./vault/approles/rate-limiter-service.json
+  shortener-service-approle:
+    file: ./vault/approles/shortener-service.json
+
+  vault-ca:
+    file: ./vault/tls/ca.pem
 
 
 volumes:

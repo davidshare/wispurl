@@ -10,6 +10,7 @@ dependencies = [
     "email-validator==2.3.0",
     "fastapi==0.137.1",
     "gunicorn==26.0.0",
+    "hvac>=2.4.0",
     "psycopg[binary]==3.3.4",
     "pydantic-settings==2.14.1",
     "pyjwt==2.13.0",
