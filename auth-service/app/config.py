@@ -4,7 +4,7 @@ from pydantic import Field, field_validator
 
 from shared.config import ServiceSettings
 
-from .vault_client import load_vault_secrets
+from vault_client import load_vault_secrets
 
 
 class AuthSettings(ServiceSettings):
