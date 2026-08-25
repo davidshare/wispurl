@@ -12,6 +12,7 @@ from functools import lru_cache
 from pydantic import Field, field_validator
 
 from shared.config import ServiceSettings
+from vault_client import load_vault_secrets
 
 # The only actions this service will rate-limit. Restricting to an allow-list keeps
 # Redis key space bounded — arbitrary action strings can never create keys.
@@ -68,4 +69,7 @@ class RateLimiterSettings(ServiceSettings):
 @lru_cache
 def get_settings() -> RateLimiterSettings:
     """Return the process-wide settings singleton (parsed once, then cached)."""
+    vault_values = load_vault_secrets()
+    if vault_values:
+        return RateLimiterSettings(**vault_values)
     return RateLimiterSettings()

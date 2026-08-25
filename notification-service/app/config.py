@@ -10,6 +10,7 @@ from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from vault_client import load_vault_secrets
 
 
 class NotificationSettings(BaseSettings):
@@ -42,4 +43,7 @@ class NotificationSettings(BaseSettings):
 @lru_cache
 def get_settings() -> NotificationSettings:
     """Return the process-wide settings singleton (parsed once, then cached)."""
+    vault_values = load_vault_secrets()
+    if vault_values:
+        return NotificationSettings(**vault_values)
     return NotificationSettings()

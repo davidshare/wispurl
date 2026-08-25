@@ -13,6 +13,8 @@ from pydantic import AnyHttpUrl, Field, field_validator, model_validator
 
 from shared.config import ServiceSettings
 
+from vault_client import load_vault_secrets
+
 
 class QrSettings(ServiceSettings):
     """Environment-driven settings for the QR process."""
@@ -56,4 +58,7 @@ class QrSettings(ServiceSettings):
 @lru_cache
 def get_settings() -> QrSettings:
     """Return the process-wide settings singleton (parsed once, then cached)."""
+    vault_values = load_vault_secrets()
+    if vault_values:
+        return QrSettings(**vault_values)
     return QrSettings()

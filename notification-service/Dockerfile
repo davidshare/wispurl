@@ -9,15 +9,17 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
+COPY --from=vault_client . /shared/vault_client/
+
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
+    uv sync --frozen --no-install-project --no-dev --no-editable
 
 COPY shared/ ./shared/
 COPY app/ ./app/
 COPY entrypoint.sh README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev --no-editable
 
 FROM python:3.13-slim AS runtime
 

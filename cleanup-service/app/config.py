@@ -10,6 +10,7 @@ from functools import lru_cache
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from vault_client import load_vault_secrets
 
 
 class CleanupSettings(BaseSettings):
@@ -52,4 +53,7 @@ class CleanupSettings(BaseSettings):
 @lru_cache
 def get_settings() -> CleanupSettings:
     """Return the process-wide settings singleton (parsed once, then cached)."""
+    vault_values = load_vault_secrets()
+    if vault_values:
+        return CleanupSettings(**vault_values)
     return CleanupSettings()

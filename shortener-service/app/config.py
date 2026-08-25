@@ -3,13 +3,15 @@ from functools import lru_cache
 from pydantic import AnyHttpUrl, Field, field_validator
 
 from shared.config import ServiceSettings
+from vault_client import load_vault_secrets
 
 
 class ShortenerSettings(ServiceSettings):
     database_url: str = Field(alias="DATABASE_URL")
     public_base_url: AnyHttpUrl = Field(alias="PUBLIC_BASE_URL")
     shortcode_length: int = Field(default=7, alias="SHORTCODE_LENGTH")
-    shortcode_max_retries: int = Field(default=5, alias="SHORTCODE_MAX_RETRIES")
+    shortcode_max_retries: int = Field(
+        default=5, alias="SHORTCODE_MAX_RETRIES")
     rate_limiter_url: AnyHttpUrl = Field(alias="RATE_LIMITER_URL")
     analytics_service_url: AnyHttpUrl = Field(alias="ANALYTICS_SERVICE_URL")
     # Shared secret presented to the internal /events and /check endpoints.
@@ -20,7 +22,8 @@ class ShortenerSettings(ServiceSettings):
         alias="RATE_LIMITER_REQUEST_TIMEOUT",
     )
     # If the limiter is unreachable, allow the create (fail-open) by default.
-    rate_limiter_fail_open: bool = Field(default=True, alias="RATE_LIMITER_FAIL_OPEN")
+    rate_limiter_fail_open: bool = Field(
+        default=True, alias="RATE_LIMITER_FAIL_OPEN")
     # RabbitMQ for publishing click events. When events are enabled the redirect
     # publishes "link.clicked"; the legacy HTTP POST to Analytics is kept behind a
     # separate flag as a fallback.
@@ -82,4 +85,7 @@ class ShortenerSettings(ServiceSettings):
 
 @lru_cache
 def get_settings() -> ShortenerSettings:
+    vault_values = load_vault_secrets()
+    if vault_values:
+        return ShortenerSettings(**vault_values)
     return ShortenerSettings()

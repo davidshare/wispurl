@@ -95,22 +95,13 @@ services:
   shortener-service:
     build:
       context: ./shortener-service
+      additional_contexts:
+        vault_client: ./shared/vault_client
     environment:
-      DATABASE_URL: ${SHORTENER_DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8002}
-      RATE_LIMITER_URL: ${RATE_LIMITER_URL:-http://rate-limiter-service:8000}
-      ANALYTICS_SERVICE_URL: ${ANALYTICS_SERVICE_URL:-http://analytics-service:8000}
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
-      ANALYTICS_REQUEST_TIMEOUT: ${ANALYTICS_REQUEST_TIMEOUT:-2}
-      RATE_LIMITER_REQUEST_TIMEOUT: ${RATE_LIMITER_REQUEST_TIMEOUT:-1}
-      RATE_LIMITER_FAIL_OPEN: ${RATE_LIMITER_FAIL_OPEN:-true}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
-      EVENTS_PUBLISH_ENABLED: ${EVENTS_PUBLISH_ENABLED:-true}
-      ANALYTICS_HTTP_FALLBACK: ${ANALYTICS_HTTP_FALLBACK:-false}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      VAULT_ADDR: https://vault:8200
+      VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
+      VAULT_CACERT: /run/secrets/vault-ca.pem
+      VAULT_SECRET_PATH: wispurl/shortener-service
     ports:
       - "8002:8000"
     secrets:
@@ -145,15 +136,13 @@ services:
   analytics-service:
     build:
       context: ./analytics-service
+      additional_contexts:
+        vault_client: ./shared/vault_client
     environment:
-      DATABASE_URL: ${ANALYTICS_DATABASE_URL}
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      MILESTONES: ${MILESTONES:-100,1000,10000}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      VAULT_ADDR: https://vault:8200
+      VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
+      VAULT_CACERT: /run/secrets/vault-ca.pem
+      VAULT_SECRET_PATH: wispurl/analytics-service
     # No published ports: /events is internal-only and /stats is reached through
     # the gateway. The service is reachable only on the internal Docker network.
     secrets:
@@ -188,18 +177,22 @@ services:
   # Queue-driven consumer: the SAME analytics image, run as a different process
   # (python -m app.worker) instead of the API. Consumes analytics.clicks, writes
   # click_events, and publishes link.milestone events.
-  analytics-consumer:
+  analytics-consumer-service:
     build:
       context: ./analytics-service
+      additional_contexts:
+        vault_client: ./shared/vault_client
     entrypoint: ["python", "-m", "app.worker"]
     environment:
-      DATABASE_URL: ${ANALYTICS_DATABASE_URL}
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      MILESTONES: ${MILESTONES:-100,1000,10000}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      VAULT_ADDR: https://vault:8200
+      VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
+      VAULT_CACERT: /run/secrets/vault-ca.pem
+      VAULT_SECRET_PATH: wispurl/analytics-consumer-service
+    secrets:
+      - source: analytics-consumer-service-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     depends_on:
       postgres:
         condition: service_healthy
@@ -222,12 +215,13 @@ services:
   cleanup-service:
     build:
       context: ./cleanup-service
+      additional_contexts:
+        vault_client: ./shared/vault_client
     environment:
-      DATABASE_URL: ${SHORTENER_DATABASE_URL}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
-      CLEANUP_INTERVAL_SECONDS: ${CLEANUP_INTERVAL_SECONDS:-60}
-      BATCH_SIZE: ${BATCH_SIZE:-500}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      VAULT_ADDR: https://vault:8200
+      VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
+      VAULT_CACERT: /run/secrets/vault-ca.pem
+      VAULT_SECRET_PATH: wispurl/cleanup-service
     # Becomes a Kubernetes CronJob in the DevOps phase (Prompt 10) — no long-running
     # loop there. Here it loops with a sleep as a plain Compose container.
     secrets:
@@ -257,10 +251,13 @@ services:
   notification-service:
     build:
       context: ./notification-service
+      additional_contexts:
+        vault_client: ./shared/vault_client
     environment:
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://appuser:apppass@rabbitmq:5672/}
-      NOTIFY_CHANNEL: ${NOTIFY_CHANNEL:-log}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      VAULT_ADDR: https://vault:8200
+      VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
+      VAULT_CACERT: /run/secrets/vault-ca.pem
+      VAULT_SECRET_PATH: wispurl/notification-service
     secrets:
       - source: notification-service-approle
         target: vault-approle.json
@@ -286,14 +283,18 @@ services:
   rate-limiter-service:
     build:
       context: ./rate-limiter-service
+      additional_contexts:
+        vault_client: ./shared/vault_client
     environment:
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      WINDOW_SECONDS: ${WINDOW_SECONDS:-3600}
-      CREATE_LINK_LIMIT: ${CREATE_LINK_LIMIT:-20}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      VAULT_ADDR: https://vault:8200
+      VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
+      VAULT_CACERT: /run/secrets/vault-ca.pem
+      VAULT_SECRET_PATH: wispurl/rate-limiter-service
+    secrets:
+      - source: rate-limiter-service-approle
+        target: vault-approle.json
+      - source: vault-ca
+        target: vault-ca.pem
     # No published ports: /check is internal-only, reached on the Docker network.
     depends_on:
       redis:
@@ -320,15 +321,13 @@ services:
   qr-service:
     build:
       context: ./qr-service
+      additional_contexts:
+        vault_client: ./shared/vault_client
     environment:
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
-      MIN_SIZE_PX: ${MIN_SIZE_PX:-64}
-      MAX_SIZE_PX: ${MAX_SIZE_PX:-1024}
-      DEFAULT_SIZE_PX: ${DEFAULT_SIZE_PX:-256}
-      CACHE_TTL: ${CACHE_TTL:-86400}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      VAULT_ADDR: https://vault:8200
+      VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
+      VAULT_CACERT: /run/secrets/vault-ca.pem
+      VAULT_SECRET_PATH: wispurl/qr-service
     secrets:
       - source: qr-service-approle
         target: vault-approle.json
@@ -361,17 +360,13 @@ services:
   gateway:
     build:
       context: ./gateway
+      additional_contexts:
+        vault_client: ./shared/vault_client
     environment:
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:8000}
-      SHORTENER_SERVICE_URL: ${SHORTENER_SERVICE_URL:-http://shortener-service:8000}
-      ANALYTICS_SERVICE_URL: ${ANALYTICS_SERVICE_URL:-http://analytics-service:8000}
-      QR_SERVICE_URL: ${QR_SERVICE_URL:-http://qr-service:8000}
-      REQUEST_CONNECT_TIMEOUT: ${REQUEST_CONNECT_TIMEOUT:-5}
-      REQUEST_READ_TIMEOUT: ${REQUEST_READ_TIMEOUT:-30}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      VAULT_ADDR: https://vault:8200
+      VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
+      VAULT_CACERT: /run/secrets/vault-ca.pem
+      VAULT_SECRET_PATH: wispurl/gateway
     # The gateway is the only backend port published to the host; all other
     # services are reachable only on the internal Docker network.
     ports:
@@ -559,6 +554,8 @@ secrets:
     file: ./vault/approles/auth-service.json
   analytics-service-approle:
     file: ./vault/approles/analytics-service.json
+  analytics-consumer-service-approle:
+    file: ./vault/approles/analytics-consumer-service.json
   cleanup-service-approle:
     file: ./vault/approles/cleanup-service.json
   gateway-approle:

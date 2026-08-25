@@ -95,6 +95,7 @@ fi
 SERVICES=(
 	"auth-service"
 	"analytics-service"
+	"analytics-consumer-service"
 	"shortener-service"
 	"gateway"
 	"cleanup-service"
@@ -118,6 +119,17 @@ for SERVICE in "${SERVICES[@]}"; do
 			LOG_LEVEL="${LOG_LEVEL:-INFO}" >/dev/null
 		;;
 	analytics-service)
+		vault kv put "secret/wispurl/${SERVICE}" \
+			DATABASE_URL="${ANALYTICS_DATABASE_URL:-postgresql+psycopg://user:your-db-password-here@postgres:5432/stats_db}" \
+			INTERNAL_API_KEY="${INTERNAL_API_KEY:-your-internal-api-key-here}" \
+			JWT_SECRET="${JWT_SECRET:-your-jwt-secret-key-here}" \
+			JWT_ALGORITHM="${JWT_ALGORITHM:-HS256}" \
+			MILESTONES="${MILESTONES:-100,1000,10000}" \
+			RABBITMQ_URL="${RABBITMQ_URL:-amqp://user:your-rabbitmq-password-here@rabbitmq:5672/}" \
+			CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:3000}" \
+			LOG_LEVEL="${LOG_LEVEL:-INFO}" >/dev/null
+		;;
+	analytics-consumer-service)
 		vault kv put "secret/wispurl/${SERVICE}" \
 			DATABASE_URL="${ANALYTICS_DATABASE_URL:-postgresql+psycopg://user:your-db-password-here@postgres:5432/stats_db}" \
 			INTERNAL_API_KEY="${INTERNAL_API_KEY:-your-internal-api-key-here}" \

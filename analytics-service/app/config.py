@@ -13,6 +13,7 @@ from functools import lru_cache
 from pydantic import Field, field_validator
 
 from shared.config import ServiceSettings
+from vault_client import load_vault_secrets
 
 
 class AnalyticsSettings(ServiceSettings):
@@ -33,7 +34,8 @@ class AnalyticsSettings(ServiceSettings):
 
     top_referrers_limit: int = Field(default=5, alias="TOP_REFERRERS_LIMIT")
     max_referrer_length: int = Field(default=2048, alias="MAX_REFERRER_LENGTH")
-    max_user_agent_length: int = Field(default=512, alias="MAX_USER_AGENT_LENGTH")
+    max_user_agent_length: int = Field(
+        default=512, alias="MAX_USER_AGENT_LENGTH")
 
     cors_allowed_origins: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
@@ -78,4 +80,7 @@ class AnalyticsSettings(ServiceSettings):
 @lru_cache
 def get_settings() -> AnalyticsSettings:
     """Return the process-wide settings singleton (parsed once, then cached)."""
+    vault_values = load_vault_secrets()
+    if vault_values:
+        return AnalyticsSettings(**vault_values)
     return AnalyticsSettings()

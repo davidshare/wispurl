@@ -16,6 +16,7 @@ dependencies = [
     "sqlalchemy==2.0.51",
     "structlog==26.1.0",
     "uvicorn==0.49.0",
+    "wispurl-vault-client",
 ]
 
 [dependency-groups]
@@ -41,3 +42,6 @@ python_version = "3.13"
 strict = true
 plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
 exclude = ["alembic/versions/"]
+
+[tool.uv.sources]
+wispurl-vault-client = { path = "../shared/vault_client", editable = true }

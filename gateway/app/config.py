@@ -13,6 +13,7 @@ from functools import lru_cache
 from pydantic import AnyHttpUrl, Field, field_validator
 
 from shared.config import ServiceSettings
+from vault_client import load_vault_secrets
 
 # Top-level path segments the bare ``GET /{short_code}`` catch-all must never
 # match. They correspond to real gateway routes (or FastAPI's own docs routes)
@@ -88,4 +89,7 @@ class GatewaySettings(ServiceSettings):
 @lru_cache
 def get_settings() -> GatewaySettings:
     """Return the process-wide settings singleton (parsed once, then cached)."""
+    vault_values = load_vault_secrets()
+    if vault_values:
+        return GatewaySettings(**vault_values)
     return GatewaySettings()
