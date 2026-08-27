@@ -18,8 +18,24 @@ services:
       - prometheus-data:/prometheus
     networks:
       - observability
+  
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:latest}
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/loki/loki.yaml
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+    networks:
+      - observability
+
 networks:
   observability:
     driver: bridge
+    
 volumes:
   prometheus-data:
+  loki-data:
