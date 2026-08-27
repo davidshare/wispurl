@@ -408,6 +408,7 @@ dependencies = [
     { name = "aio-pika" },
     { name = "pydantic-settings" },
     { name = "structlog" },
+    { name = "wispurl-metrics" },
     { name = "wispurl-vault-client" },
 ]
 
@@ -422,6 +423,7 @@ requires-dist = [
     { name = "aio-pika", specifier = "==9.5.7" },
     { name = "pydantic-settings", specifier = "==2.14.1" },
     { name = "structlog", specifier = "==26.1.0" },
+    { name = "wispurl-metrics", editable = "../shared/wispurl_metrics" },
     { name = "wispurl-vault-client", editable = "../shared/vault_client" },
 ]
 
@@ -447,6 +449,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5a/82/42f767fc1c1143d6fd36efb827202a2d997a375e160a71eb2888a925aac1/pathspec-1.1.1.tar.gz", hash = "sha256:17db5ecd524104a120e173814c90367a96a98d07c45b2e10c2f3919fff91bf5a", size = 135180, upload-time = "2026-04-27T01:46:08.907Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl", hash = "sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189", size = 57328, upload-time = "2026-04-27T01:46:07.06Z" },
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.26.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/73/f1334c29c2af4cd9dba6c7817e61b611bd0215e2eb5565c6064a4de18802/prometheus_client-0.26.0.tar.gz", hash = "sha256:04a91bcf94e2cf74a44a1a874d651a2e853ed354b6e822f3b7487751465d5c2b", size = 92910, upload-time = "2026-07-24T19:36:41.893Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/a3/b69efbf4143b5b9859b977770bbbabcc2796b702fa69dc40271e45cd5a56/prometheus_client-0.26.0-py3-none-any.whl", hash = "sha256:fa93d06737aa02bacd05794768508bb97d2fbee28cb3bca04eaae92f0ca953d6", size = 64494, upload-time = "2026-07-24T19:36:40.854Z" },
 ]
 
 [[package]]
@@ -698,6 +709,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/53/0c/06f8b233b8fd13b9e
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
 ]
+
+[[package]]
+name = "wispurl-metrics"
+version = "0.1.0"
+source = { editable = "../shared/wispurl_metrics" }
+dependencies = [
+    { name = "prometheus-client" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "prometheus-client", specifier = ">=0.26.0" }]
 
 [[package]]
 name = "wispurl-vault-client"

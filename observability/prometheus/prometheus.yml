@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus's own operational metrics.
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+        labels:
+          environment: docker
+          application: observability
+
+  # Grafana Alloy's own operational metrics and health visibility.
+  # This assumes your Alloy service is named "alloy" and its HTTP server
+  # listens on port 12345 within the observability Docker network.
+  - job_name: alloy
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - alloy:12345
+        labels:
+          environment: docker
+          application: observability

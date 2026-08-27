@@ -9,7 +9,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
-COPY --from=vault_client . /shared/vault_client/
+COPY --from=shared_lib . /shared/
 
 # Resolve dependencies from the lockfile first for cacheable layers.
 COPY pyproject.toml uv.lock ./

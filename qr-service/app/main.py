@@ -15,6 +15,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.responses import Response as StarletteResponse
+from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
 
 from app.config import get_settings
 from app.errors.exceptions import (
@@ -78,11 +79,18 @@ def create_app() -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
+    # Register the prometheus middleware for metrics collection
+    app.add_middleware(PrometheusMiddleware, service_name="qr")
+
     app.add_exception_handler(QrDomainError, handle_domain_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     app.include_router(qr_router)
+
+    @app.get("/metrics")
+    def expose_metrics(request: Request) -> Response:
+        return metrics_endpoint(request)
 
     @app.get("/health", status_code=status.HTTP_200_OK, tags=["health"])
     async def health() -> JSONResponse:

@@ -10,7 +10,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
-COPY --from=vault_client . /shared/vault_client/
+COPY --from=shared_lib . /shared/
 
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
