@@ -32,10 +32,35 @@ services:
     networks:
       - observability
 
+  tempo:
+    image: ${TEMPO_IMAGE:-grafana/tempo:latest}
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/tempo/tempo.yaml
+      - -target=all
+    ports:
+      - "127.0.0.1:${TEMPO_HTTP_PORT:-3200}:3200"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:14250:14250"
+      - "127.0.0.1:14268:14268"
+    volumes:
+      - ./observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3200/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 networks:
   observability:
     driver: bridge
-    
+
 volumes:
   prometheus-data:
   loki-data:
+  tempo-data:
