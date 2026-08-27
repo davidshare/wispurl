@@ -8,6 +8,7 @@ dependencies = [
     "aio-pika==9.5.7",
     "pydantic-settings==2.14.1",
     "structlog==26.1.0",
+    "wispurl-metrics",
     "wispurl-vault-client",
 ]
 
@@ -36,3 +37,4 @@ plugins = ["pydantic.mypy"]
 
 [tool.uv.sources]
 wispurl-vault-client = { path = "../shared/vault_client", editable = true }
+wispurl-metrics = { path = "../shared/wispurl_metrics", editable = true }

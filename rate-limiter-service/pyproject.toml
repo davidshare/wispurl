@@ -11,6 +11,7 @@ dependencies = [
     "redis==6.4.0",
     "structlog==26.1.0",
     "uvicorn==0.49.0",
+    "wispurl-metrics",
     "wispurl-vault-client",
 ]
 
@@ -39,3 +40,4 @@ plugins = ["pydantic.mypy"]
 
 [tool.uv.sources]
 wispurl-vault-client = { path = "../shared/vault_client", editable = true }
+wispurl-metrics = { path = "../shared/wispurl_metrics", editable = true }
