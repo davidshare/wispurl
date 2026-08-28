@@ -5,6 +5,7 @@ handlers, and the QR router. The service is stateless: no database, no lifespan
 resources, nothing per-request is persisted.
 """
 
+import os
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -16,6 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.responses import Response as StarletteResponse
 from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
+from wispurl_otel import setup_otel, instrument_fastapi
 
 from app.config import get_settings
 from app.errors.exceptions import (
@@ -30,6 +32,8 @@ from shared.logging_config import (
     clear_request_context,
     configure_logging,
 )
+
+setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "qr-service"))
 
 logger = structlog.get_logger()
 
@@ -62,6 +66,8 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
+
+    instrument_fastapi(app)
 
     @app.middleware("http")
     async def request_context_middleware(

@@ -45,5 +45,7 @@ vault/approles/
 **/.env
 !**/.env.example
 observability.env
+observability/secrets/
 
 README.vault.md
+

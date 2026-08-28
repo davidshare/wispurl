@@ -1,3 +1,25 @@
+name: wispurl
+
+# =========================================================================
+# YAML ANCHORS FOR OTEL CONFIGURATION
+# =========================================================================
+x-prometheus-labels: &prometheus-labels
+  labels:
+    - "prometheus.io/scrape=true"
+    - "prometheus.io/port=8000"
+    - "prometheus.io/path=/metrics"
+
+x-otel-env: &otel-env
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: none
+  OTEL_LOGS_EXPORTER: none
+
+  OTEL_PROPAGATORS: tracecontext,baggage
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local,service.version=1.0.0
+
 services:
   postgres:
     image: postgres:18
@@ -35,6 +57,7 @@ services:
         condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
+
   pgadmin:
     image: dpage/pgadmin4:9.8
     container_name: wispurl-pgadmin
@@ -58,7 +81,17 @@ services:
       context: ./auth-service
       additional_contexts:
         shared_lib: ./shared
+
+    # Merge the common labels
+    <<: *prometheus-labels
+
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "auth-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -97,7 +130,17 @@ services:
       context: ./shortener-service
       additional_contexts:
         shared_lib: ./shared
+
+    # Merge the common labels
+    <<: *prometheus-labels
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "shortener-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -138,7 +181,17 @@ services:
       context: ./analytics-service
       additional_contexts:
         shared_lib: ./shared
+
+    # Merge the common labels
+    <<: *prometheus-labels
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "analytics-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -182,8 +235,15 @@ services:
       context: ./analytics-service
       additional_contexts:
         shared_lib: ./shared
+    
     entrypoint: ["python", "-m", "app.worker"]
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "analytics-consumer-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -217,7 +277,14 @@ services:
       context: ./cleanup-service
       additional_contexts:
         shared_lib: ./shared
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "cleanup-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -253,7 +320,14 @@ services:
       context: ./notification-service
       additional_contexts:
         shared_lib: ./shared
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "notification-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -285,7 +359,17 @@ services:
       context: ./rate-limiter-service
       additional_contexts:
         shared_lib: ./shared
+
+    # Merge the common labels
+    <<: *prometheus-labels
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "rate-limiter-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -323,7 +407,17 @@ services:
       context: ./qr-service
       additional_contexts:
         shared_lib: ./shared
+    
+    # Merge the common labels
+    <<: *prometheus-labels
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "qr-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -362,7 +456,17 @@ services:
       context: ./gateway
       additional_contexts:
         shared_lib: ./shared
+
+    # Merge the common labels
+    <<: *prometheus-labels
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "gateway"
+
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -454,6 +558,12 @@ services:
 
   rabbitmq:
     image: rabbitmq:4-management
+    command:
+      - sh
+      - -c
+      - |
+        rabbitmq-plugins enable --offline rabbitmq_prometheus &&
+        rabbitmq-server
     environment:
       # Non-default creds: RabbitMQ's built-in "guest" user may only connect from
       # localhost, so services on the Docker network must authenticate as a real user.
@@ -521,7 +631,7 @@ services:
       start_period: 10s
 
     networks:
-        - wispurl-network
+      - wispurl-network
 
   vault-unseal:
     image: python:3.12-alpine
@@ -580,6 +690,7 @@ volumes:
     driver: local
   pgadmin_data:
     driver: local
+
 networks:
   wispurl-network:
     driver: bridge

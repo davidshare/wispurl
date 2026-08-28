@@ -5,6 +5,7 @@ request-correlation middleware, exception handlers, and the proxy routers. Route
 registration ORDER is significant — see :func:`create_app`.
 """
 
+import os
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -19,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from starlette.responses import Response as StarletteResponse
 from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
+from wispurl_otel import setup_otel, instrument_fastapi
 
 from app.config import get_settings
 from app.errors.exceptions import (
@@ -37,6 +39,8 @@ from shared.logging_config import (
     clear_request_context,
     configure_logging,
 )
+
+setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "gateway"))
 
 logger = structlog.get_logger()
 
@@ -105,6 +109,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    instrument_fastapi(app)
+
     # CORS matters here specifically: the browser only ever talks to the gateway.
     # Origins are configured explicitly from the environment, never "*".
     app.add_middleware(
@@ -154,7 +160,7 @@ def create_app() -> FastAPI:
             "max-age=63072000; includeSubDomains"
         )
         return response
-    
+
     # Register the prometheus middleware for metrics collection
     app.add_middleware(PrometheusMiddleware, service_name="gateway")
 

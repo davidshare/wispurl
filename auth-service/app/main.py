@@ -1,3 +1,5 @@
+import os
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -11,6 +13,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 from starlette.responses import Response as StarletteResponse
 from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
+from wispurl_otel import setup_otel, instrument_fastapi
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -26,6 +29,8 @@ from shared.logging_config import (
     clear_request_context,
     configure_logging,
 )
+
+setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "auth-service"))
 
 logger = structlog.get_logger()
 
@@ -58,6 +63,8 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
+
+    instrument_fastapi(app)
 
     app.add_middleware(
         CORSMiddleware,

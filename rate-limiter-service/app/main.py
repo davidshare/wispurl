@@ -4,6 +4,7 @@ Wires configuration, structured logging, the async Redis client lifespan,
 request-correlation middleware, exception handlers, and the ``/check`` router.
 """
 
+import os
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -18,6 +19,7 @@ from redis.asyncio import Redis
 from starlette.responses import Response as StarletteResponse
 
 from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
+from wispurl_otel import setup_otel, instrument_fastapi
 
 from app.config import get_settings
 from app.errors.exceptions import (
@@ -32,6 +34,8 @@ from shared.logging_config import (
     clear_request_context,
     configure_logging,
 )
+
+setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "rate-limiter-service"))
 
 logger = structlog.get_logger()
 
@@ -86,6 +90,8 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         lifespan=lifespan,
     )
+
+    instrument_fastapi(app)
 
     @app.middleware("http")
     async def request_context_middleware(

@@ -1,0 +1,268 @@
+// =============================================================================
+// 1. Remote write
+// =============================================================================
+
+prometheus.remote_write "prometheus" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}
+
+
+// =============================================================================
+// 2. Docker discovery
+// =============================================================================
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+
+// =============================================================================
+// 3. Docker metrics discovery
+//
+// Scrapes only containers that:
+//   - belong to Docker network wispurl_wispurl-network
+//   - declare prometheus.io/scrape=true
+//   - declare a numeric prometheus.io/port
+// =============================================================================
+
+discovery.relabel "metrics" {
+  targets = discovery.docker.containers.targets
+
+  // 1. Keep only containers on the correct network
+  rule {
+    source_labels = ["__meta_docker_network_name"]
+    regex         = "^wispurl_wispurl-network$"
+    action        = "keep"
+  }
+
+  // 2. Keep only containers marked for scraping
+  rule {
+    source_labels = ["__meta_docker_container_label_prometheus_io_scrape"]
+    regex         = "^true$"
+    action        = "keep"
+  }
+
+  // 3. Keep only containers with a valid port label
+  rule {
+    source_labels = ["__meta_docker_container_label_prometheus_io_port"]
+    regex         = "^[0-9]+$"
+    action        = "keep"
+  }
+
+  // 4. NEW: Drop IPv6 port bindings to prevent duplicate targets per container
+  rule {
+    source_labels = ["__meta_docker_port_public_ip"]
+    regex         = "^::$"
+    action        = "drop"
+  }
+
+  // 5. Creates addresses such as auth-service:8000.
+  rule {
+    source_labels = [
+      "__meta_docker_container_label_com_docker_compose_service",
+      "__meta_docker_container_label_prometheus_io_port",
+    ]
+    regex        = "^(.+);([0-9]+)$"
+    target_label = "__address__"
+    replacement  = "$1:$2"
+  }
+
+  // 6. A service without prometheus.io/path uses /metrics, which is the default
+  rule {
+    source_labels = ["__meta_docker_container_label_prometheus_io_path"]
+    regex         = "^/.+$"
+    target_label  = "__metrics_path__"
+    replacement   = "$1"
+  }
+
+  // 7. Extract clean container name (removes the leading slash)
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "^/(.+)$"
+    target_label  = "container"
+    replacement   = "$1"
+  }
+
+  // 8. Add compose service label
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "^(.+)$"
+    target_label  = "compose_service"
+    replacement   = "$1"
+  }
+
+  // 9. Add static labels
+  rule {
+    target_label = "environment"
+    replacement  = "docker"
+  }
+
+  rule {
+    target_label = "application"
+    replacement  = "wispurl"
+  }
+}
+
+prometheus.scrape "docker_services" {
+  targets         = discovery.relabel.metrics.output
+  job_name        = "docker-compose-services"
+  metrics_path    = "/metrics"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+
+// =============================================================================
+// 4. Docker logs to Loki
+// =============================================================================
+
+discovery.relabel "logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_network_name"]
+    regex         = "^wispurl_wispurl-network$"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "^/(.+)$"
+    target_label  = "container"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "^(.+)$"
+    target_label  = "service"
+    replacement   = "$1"
+  }
+
+  rule {
+    target_label = "environment"
+    replacement  = "docker"
+  }
+
+  rule {
+    target_label = "application"
+    replacement  = "wispurl"
+  }
+}
+
+loki.source.docker "wispurl" {
+  host = "unix:///var/run/docker.sock"
+
+  targets = discovery.relabel.logs.output
+
+  relabel_rules = discovery.relabel.logs.rules
+
+  forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+
+// =============================================================================
+// 5. OTLP traces: FastAPI/Python services -> Alloy -> Tempo
+// =============================================================================
+
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+
+    tls {
+      insecure = true
+    }
+  }
+}
+
+
+// =============================================================================
+// 6. Redis metrics
+// =============================================================================
+
+prometheus.exporter.redis "redis" {
+  redis_addr = "redis:6379"
+}
+
+prometheus.scrape "redis" {
+  targets         = prometheus.exporter.redis.redis.targets
+  job_name        = "redis"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+
+// =============================================================================
+// 7. RabbitMQ metrics
+//
+// Requires rabbitmq_prometheus to be enabled.
+// =============================================================================
+
+prometheus.scrape "rabbitmq" {
+  targets = [
+    {
+      "__address__" = "rabbitmq:15692",
+      "instance"    = "rabbitmq",
+      "environment" = "docker",
+      "application" = "wispurl",
+    },
+  ]
+
+  job_name        = "rabbitmq"
+  metrics_path    = "/metrics"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+
+// =============================================================================
+// 8. PostgreSQL metrics
+//
+// Ensure POSTGRES_PASSWORD is set in Alloy's environment.
+//
+// For local development, the default credentials shown here are consistent with
+// your current PostgreSQL Compose defaults. In production, create a dedicated,
+// least-privileged PostgreSQL monitoring user.
+// =============================================================================
+
+local.file "postgres_dsn" {
+  filename  = "/run/secrets/postgres_dsn"
+  is_secret = true
+}
+
+prometheus.exporter.postgres "postgres" {
+  data_source_names = [local.file.postgres_dsn.content]
+}
+
+prometheus.scrape "postgres" {
+  targets         = prometheus.exporter.postgres.postgres.targets
+  job_name        = "postgres"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
