@@ -1,262 +1,236 @@
 # WispURL
 
-A production-shaped **URL shortener built as a microservices system**. WispURL takes a long URL and returns a short link, serves the public redirect, and records and aggregates click analytics — but the real point of the project is the architecture around that simple core: independent services that own their own data, three different execution patterns (request-, queue-, and schedule-driven), an async event backbone, and a single hardened gateway in front of a polished Next.js web client.
+WispURL is a URL shortener and analytics application built from independently deployable services. Users create and manage short links, redirect through short codes, and view aggregate click analytics. The application is also a portfolio project for building a production-style DevOps, DevSecOps, and SRE platform around a real service.
 
-Everything runs locally with one `docker compose up`.
+The local Docker Compose application and its security and observability tooling are under active development. The AWS cloud work is currently an implementation plan; this repository does not yet provision AWS infrastructure or deploy to EKS. See the [local epic](docs/local/EPIC.md) and [cloud epic](docs/cloud/EPIC.md) for the ordered work and completion status.
 
-## What it does
+## What the application does
 
-- **Shorten** — create short links (random base62 or a custom slug, optional expiry), list and delete your own links.
-- **Redirect** — fast public `307` redirect from a short code to the original URL.
-- **Analyze** — every click is published as an event, anonymized, and aggregated into per-link stats (total clicks, clicks-by-day, top referrers).
-- **QR** — generate a PNG QR code for any short link.
-- **Notify** — emit notifications when a link expires or crosses a click milestone.
-- **Expire & clean up** — a scheduled sweep deactivates expired links.
-- **Rate limit** — per-user, per-action limits backed by Redis.
-- **A full web app** — marketing site, auth, and an authenticated dashboard with charts.
+- Creates short links using generated base62 codes or a user-selected slug, with optional expiration.
+- Redirects visitors to the original URL and publishes click events asynchronously.
+- Provides account authentication and an authenticated link-management and analytics dashboard.
+- Aggregates click counts, daily activity, and top referrers while anonymizing IP addresses before storage.
+- Generates QR code images for links.
+- Applies per-user and per-action rate limits using Redis.
+- Sends expiration and click-milestone notifications; local development logs notifications by default.
 
 ## Architecture
 
-
-
-```
-                     ┌────────────┐
-
-Browser ───────────►  │  Frontend  │  Next.js web client (BFF for auth)
-└─────┬──────┘
-│  /v1/* (only public entry point)
-┌─────▼──────┐
-│  Gateway   │  authenticate · route · forward
-└─────┬──────┘
-┌───────────────┬──────┼───────────────┬──────────────┐
-▼               ▼      ▼               ▼              ▼
-┌──────────┐  ┌────────────┐  ┌───────────┐  ┌───────────┐  ┌──────────┐
-│   Auth   │  │ Shortener  │  │ Analytics │  │    QR     │  │   Rate   │
-│ (auth_db)│  │ (short_db) │  │ (stats_db)│  │(stateless)│  │ Limiter  │
-└──────────┘  └─────┬──────┘  └─────▲─────┘  └───────────┘  └────┬─────┘
-│ link.clicked   │ consume                Redis
-▼                │
-┌───────────────── RabbitMQ ──────────────────┐
-│ link.clicked · link.expired · link.milestone │
-└───────┬───────────────────────────┬─────────┘
-▼                            ▼
-┌──────────────┐            ┌────────────────┐
-│   Cleanup    │            │  Notification  │
-│ (schedule)   │            │   (consumer)   │
-└──────────────┘            └────────────────┘
-
+```mermaid
+flowchart LR
+    Browser --> Frontend[Next.js frontend]
+    Frontend --> Gateway[FastAPI gateway]
+    Gateway --> Auth[Auth service]
+    Gateway --> Shortener[Shortener service]
+    Gateway --> AnalyticsAPI[Analytics API]
+    Gateway --> QR[QR service]
+    Shortener --> RateLimiter[Rate limiter]
+    RateLimiter --> Redis[(Redis)]
+    Shortener -- link.clicked --> RabbitMQ[(RabbitMQ)]
+    RabbitMQ --> AnalyticsWorker[Analytics consumer]
+    AnalyticsWorker --> StatsDB[(PostgreSQL stats_db)]
+    AnalyticsAPI --> StatsDB
+    Auth --> AuthDB[(PostgreSQL auth_db)]
+    Shortener --> ShortDB[(PostgreSQL short_db)]
+    Cleanup[Cleanup worker] --> ShortDB
+    Cleanup -- link.expired --> RabbitMQ
+    AnalyticsWorker -- link.milestone --> RabbitMQ
+    RabbitMQ --> Notifications[Notification worker]
 ```
 
-**Three execution patterns, by design:**
+The gateway is the intended public API entry point. PostgreSQL runs as one local server with separate databases for Auth, Shortener, and Analytics; services own their respective database and do not share tables or cross-service foreign keys. RabbitMQ carries click and lifecycle events so a broker or analytics outage does not need to block a redirect. JWTs are verified locally by services instead of requiring an Auth service call for every request.
 
-- **Request-driven** — Auth, Shortener, Analytics (API), QR, Rate Limiter, Gateway (FastAPI).
-- **Queue-driven** — Analytics consumer and Notification service (aio-pika consumers).
-- **Schedule-driven** — Cleanup sweep (a loop locally; a Kubernetes CronJob in production).
+### Services
 
-**Principles:** each service owns its own database (no shared tables, no cross-service foreign keys); the gateway is the only thing exposed publicly; access tokens are verified **locally** by every service (no hot-path call back to Auth); services are decoupled through RabbitMQ events rather than synchronous calls wherever possible.
+| Component | Role | Data or responsibility |
+| --- | --- | --- |
+| [frontend](frontend/README.md) | Web application | Next.js marketing pages, authentication flows, and dashboard |
+| [gateway](gateway/README.md) | Public API gateway | Routes public requests and applies shared request/security controls |
+| [auth-service](auth-service/README.md) | HTTP API | Signup, login, refresh, logout, and `auth_db` ownership |
+| [shortener-service](shortener-service/README.md) | HTTP API and event producer | Link lifecycle, redirects, `short_db`, and click-event publishing |
+| [analytics-service](analytics-service/README.md) | Internal HTTP API | Event ingestion and aggregate statistics in `stats_db` |
+| Analytics consumer | Queue worker | Consumes click events, writes analytics, and emits milestone events |
+| [rate-limiter-service](rate-limiter-service/README.md) | Internal HTTP API | Atomic per-user limits backed by Redis |
+| [qr-service](qr-service/README.md) | HTTP API | Stateless PNG QR generation |
+| [cleanup-service](cleanup-service/README.md) | Scheduled worker | Deactivates expired links and publishes expiration events |
+| [notification-service](notification-service/README.md) | Queue worker | Handles expiration and milestone notifications |
 
----
+More implementation and configuration detail is available in the service READMEs.
 
-## Services
+## Technology
 
-| Service | Type | Store | Responsibility |
-| ------- | ---- | ----- | -------------- |
-| [gateway](./gateway) | API | — | Single public entry point: authenticate, route, forward. |
-| [auth-service](./auth-service) | API | `auth_db` | Signup/login/refresh/logout; issues HS256 JWTs; rotating refresh tokens. |
-| [shortener-service](./shortener-service) | API + producer | `short_db` | Create/list/delete links; public redirect; publishes `link.clicked`. |
-| [analytics-service](./analytics-service) | API + consumer | `stats_db` | Ingests click events, serves aggregated stats; anonymizes IPs. |
-| [qr-service](./qr-service) | API | — | Stateless PNG QR generator (horizontal-scaling showcase). |
-| [rate-limiter-service](./rate-limiter-service) | API | Redis | Atomic per-user, per-action fixed-window limits (Lua `INCR`+`EXPIRE`). |
-| [cleanup-service](./cleanup-service) | Schedule | `short_db` | Sweeps expired links, publishes `link.expired`. |
-| [notification-service](./notification-service) | Consumer | — | Notifies on `link.expired` and `link.milestone`. |
-| [frontend](./frontend) | Web | — | Next.js client: marketing site, auth, dashboard. |
+- **Backend:** Python 3.13, FastAPI, async SQLAlchemy, Pydantic Settings, structlog, Gunicorn/Uvicorn, and `uv`.
+- **Data and messaging:** PostgreSQL, Alembic, Redis, RabbitMQ, and `aio-pika`.
+- **Frontend:** Next.js, React, TypeScript, Tailwind CSS, TanStack Query, and Recharts.
+- **Local secrets:** HashiCorp Vault with Raft storage, local TLS, and scripted initialization/unsealing.
+- **Local observability:** Prometheus, Loki, Tempo, and Grafana Alloy. Grafana is not yet included in the local Compose stack.
+- **Developer security:** Gitleaks and pre-commit.
+- **Planned cloud platform:** AWS, EKS, ArgoCD, AWS Secrets Manager, Terraform, and GitHub Actions with OIDC.
 
-Each service has its own README with endpoints, internals, and configuration.
+## Run the local application
 
----
+### Requirements
 
-## Tech Stack
+- Docker with the Compose v2 plugin, with the Docker daemon running.
+- GNU Make.
+- OpenSSL for generating local Vault certificates.
+- Gitleaks and pre-commit for the developer hook setup. `make setup` can install them through Homebrew where available; on Linux, install Gitleaks first if the Makefile reports it is missing.
+- `uv` and Node.js/npm only if you plan to run a Python service or the frontend directly on the host.
 
-- **Backend** — Python 3.13, FastAPI, async SQLAlchemy 2.0, Pydantic Settings, structlog, Gunicorn/Uvicorn, `uv` for dependency management. Auth via PyJWT + Argon2id.
-- **Messaging** — RabbitMQ (aio-pika): durable queues, persistent messages, manual acks, capped-backoff retries, and dead-letter queues.
-- **Data** — PostgreSQL (one database per stateful service, Alembic migrations), Redis.
-- **Frontend** — Next.js (App Router, RSC, Turbopack), React, TypeScript (strict), Tailwind CSS v4, shadcn/ui, TanStack Query v5, Zustand, react-hook-form + zod, Recharts.
-- **Quality** — `ruff` + `mypy --strict` across every Python service.
+### 1. Configure local values
 
----
+Copy the example file and replace its secret placeholders before bootstrapping Vault:
 
-## Event Flow
+```sh
+cp .env.example .env
+openssl rand -hex 32
+```
 
-1. A redirect (`GET /{short_code}`) emits a fire-and-forget `link.clicked` event — a broker outage never breaks the redirect.
-2. The **Analytics consumer** writes each click (IP anonymized to `/24` ÷ `/48`) and, when a code crosses a configured threshold (`MILESTONES`), publishes `link.milestone`.
-3. The **Cleanup** sweep deactivates expired links and publishes `link.expired`.
-4. The **Notification** service consumes `link.milestone` and `link.expired` and dispatches a notification (stdout log by default; optional SMTP stub).
+Generate separate random values and set at least `JWT_SECRET`, `INTERNAL_API_KEY`, and `POSTGRES_PASSWORD` in `.env`. Use the generated PostgreSQL password in all three database URLs. Set `RABBITMQ_DEFAULT_PASS` and make `RABBITMQ_URL` use the same RabbitMQ username and password. Hex values avoid URL-escaping problems in database and broker URLs.
 
----
+`.env` is ignored by Git. Never commit it, generated Vault key material, local certificates, AppRole credentials, or the observability PostgreSQL DSN.
 
-## Security Highlights
+### 2. Install the local secret-scanning hook
 
-- **Local JWT verification** everywhere (HS256 pinned, `exp`/`nbf`/`token_type` checked) — the shared `JWT_SECRET` lets services verify without calling Auth.
-- **Rotating refresh tokens** stored hashed, with reuse/theft detection that revokes a whole token family.
-- **BOLA-safe** authorization: ownership is filtered at the query level, never trusted from the request body.
-- **Gateway hardening**: body-size cap, explicit CORS allow-list, security headers, strips client-supplied identity/forwarding headers, request-id correlation.
-- **Frontend session model**: access token in memory only; refresh token in an httpOnly, SameSite=Strict cookie set by same-origin BFF routes; single-flight refresh so the rotating token is never double-spent.
-- **Internal-only endpoints** (Analytics `/v1/events`, Rate Limiter `/v1/check`) are guarded by a constant-time `X-Internal-Key` and never routed through the gateway.
-
----
-
-## Project Setup & Local Security Initialization
-
-This project utilizes a centralized **Gitleaks security policy** along with a native `Makefile` automation layer to protect both the Python microservices backend and the Next.js frontend. This ensures that cryptographic secrets, JWT signatures, and internal API keys are automatically intercepted and blocked *before* they leave your local machine.
-
-### Prerequisites
-
-Ensure you have the following installed on your host machine:
-* **Docker & Docker Compose** (ensure the Docker daemon is running: `docker info`)
-* **OpenSSL** (for generating local TLS certificates)
-* **GNU Make** (Standard on macOS/Linux; available via `chocolatey` or `winget` on Windows)
-
-### 1. Security & Hooks Initialization
-
-Before writing code or executing commits, run the primary repository bootstrap command at the project root. This command checks for the **Gitleaks binary**, installs it dynamically if missing (using your native package manager), and configures a local, isolated pre-commit hook strategy.
-
-```bash
+```sh
 make setup
 ```
 
-* **To execute a manual deep scan** of the entire historical repository tree:
-```bash
-make scan
+Useful security commands:
+
+```sh
+make scan          # scan Git history
+make scan-staged   # scan staged content
+make run-hooks     # run configured pre-commit hooks across the repository
 ```
 
-* **To safely uninstall** local security hooks and wipe configurations:
-```bash
-make clean
+`make clean` uninstalls this repository's pre-commit hook; it does not delete project files or uninstall Gitleaks.
+
+### 3. Initialize and bootstrap Vault
+
+On a first run, generate local TLS material and start Vault with its unseal sidecar:
+
+```sh
+make vault-up
+docker logs vault-unseal
+make vault-status
+make vault-bootstrap
 ```
 
-### 2. HashiCorp Vault Setup (Secrets Management)
+Wait for the sidecar to report that Vault is unsealed before running `make vault-bootstrap`. Bootstrap reads `.env`, enables the configured secrets engine and audit device, writes service-scoped policies, and creates AppRole credentials under ignored local state. Run it after a fresh initialization or deliberate Vault reset; rerunning it rewrites seeded secrets and reissues AppRole credentials.
 
-Vault is configured with integrated Raft storage, local TLS, and an automated unseal sidecar.
+Vault uses local TLS certificates and protected local Shamir key material. This is a development setup, not a production KMS-backed auto-unseal design. The Vault UI is at [https://127.0.0.1:8200/ui](https://127.0.0.1:8200/ui); the local CA is not publicly trusted.
 
-#### Prerequisites
-* Ensure Docker is actively running on your system (`docker info` should return server information).
-* OpenSSL is available to generate local CA and SAN certificates.
+### 4. Start the application stack
 
-#### Starting Vault
-1. **Generate TLS Certificates** (generates root CA and server certificates in `vault/tls/`):
-   ```bash
-   make vault-certs
-   ```
-2. **Start Vault and Unseal Sidecar**:
-   ```bash
-   make vault-up
-   ```
-3. **Monitor Automatic Unsealing**:
-   ```bash
-   docker logs -f vault-unseal
-   ```
-   *(Wait until the sidecar confirms initialization and unsealing)*
-4. **Verify Vault Status**:
-   ```bash
-   make vault-status
-   ```
-5. **Bootstrap Secrets, Policies, and AppRoles** (seeds values from your `.env` — see [Environment Configuration](#3-environment-configuration)):
-   ```bash
-   make vault-bootstrap
-   ```
-6. **Access the Vault Web UI**:
-   Open [https://127.0.0.1:8200/ui](https://127.0.0.1:8200/ui) (accept the local self-signed certificate).
-
-#### Vault Operational Commands
-| Command | Description |
-| --- | --- |
-| `make vault-up` | Generate certs and start Vault + auto-unseal sidecar |
-| `make vault-status` | Check if Vault is sealed/unsealed and view cluster details |
-| `make vault-bootstrap` | Seed secrets from `.env`, create ACL policies, and provision AppRoles for all services |
-| `make vault-env SERVICE=auth-service` | Export a service's Vault secrets into its local `<service>/.env` file |
-| `make vault-unseal` | Re-run the unseal sidecar if Vault restarted and became sealed |
-| `make vault-snapshot` | Save a Raft snapshot backup to `vault/snapshots/` |
-| `make vault-down` | Stop Vault containers (data persists in `vault/data/`) |
-| `make vault-clean` | Stop Vault and wipe all data, keys, logs, snapshots, and AppRoles |
-
-### 3. Environment Configuration
-
-WispURL relies on environment-driven variables to securely distribute secrets (like the shared JWT token validator) across isolated Docker container environments.
-
-Duplicate the template file at the root level and inject cryptographically strong random hashes:
-
-```bash
-cp .env.example .env
+```sh
+docker compose up --build -d
+docker compose ps
+docker compose logs -f
 ```
 
-Open the newly created `.env` file and replace the default keys with secure placeholders:
+The stack contains PostgreSQL and its initialization scripts, Redis, RabbitMQ, Vault, the application services, and the frontend. Check the gateway health endpoint at [http://localhost:8080/health](http://localhost:8080/health) and open the web app at [http://localhost:3000](http://localhost:3000).
 
-```env
-JWT_SECRET=your_long_random_hmac_sha256_signing_key_here
-INTERNAL_API_KEY=your_secure_constant_time_internal_service_key_here
+To stop containers while retaining persistent data:
+
+```sh
+docker compose down
 ```
 
-> **Note:** When you run `make vault-bootstrap`, your `.env` is temporarily copied into the Vault container to seed real credentials into the KV v2 engine. The file is automatically removed from the container after bootstrapping completes — no secrets persist inside the image.
+### Local service addresses
 
-### 4. Orchestration & Local Bootstrapping
-
-With local git hooks initialized and environment boundaries defined, fire up the complete multi-database event-driven stack via Docker Compose.
-
-The initial boot automatically invokes the database initializers inside `db/init/` to build separate instances for `auth_db`, `short_db`, and `stats_db`:
-
-```bash
-docker compose up --build
-```
-
-Once the logging stream stabilizes, verify accessibility across the critical system edge coordinates:
-
-| Portal | Interface URL | Credentials / Layer |
+| Component | Host address | Host binding |
 | --- | --- | --- |
-| **Web UI Application** | `http://localhost:3000` | Frontend Next.js Client Dashboard |
-| **Hardened API Gateway** | `http://localhost:8080` | Core Public `/v1/*` Entry Routing |
-| **Vault Web UI** | `https://127.0.0.1:8200/ui` | HashiCorp Vault Secrets Management |
-| **Event Broker Console** | `http://localhost:15672` | RabbitMQ Management (`appuser` / `apppass`) |
+| Frontend | `http://localhost:3000` | All interfaces in the current Compose file |
+| Gateway | `http://localhost:8080` | All interfaces in the current Compose file |
+| Auth API (debug) | `http://localhost:8001` | All interfaces in the current Compose file |
+| Shortener API (debug) | `http://localhost:8002` | All interfaces in the current Compose file |
+| pgAdmin | `http://127.0.0.1:5050` | Loopback |
+| PostgreSQL | `127.0.0.1:5432` | Loopback |
+| Redis | `127.0.0.1:6379` | Loopback |
+| RabbitMQ management | `http://127.0.0.1:15672` | Loopback |
+| Vault UI/API | `https://127.0.0.1:8200` | Loopback |
 
-### Published Ports
+The frontend, gateway, and two debug APIs are currently published on all host interfaces by Compose. Treat this stack as a local development environment and do not expose it to untrusted networks. Internal services such as Analytics, QR, Cleanup, Rate Limiter, and Notification have no published host ports.
 
-| Port | Service |
+## Start local observability
+
+Start the application Compose project first so its `wispurl_wispurl-network` network exists. Alloy's PostgreSQL exporter also needs the ignored secret file `observability/secrets/postgres_dsn.txt`. Put a PostgreSQL DSN in that file using host `postgres` and the database name, username, and password configured by `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` in `.env`. URL-encode the password if the DSN format you use requires it. Then restrict the file permissions:
+
+```sh
+mkdir -p observability/secrets
+# Write the DSN to observability/secrets/postgres_dsn.txt; do not commit it.
+chmod 600 observability/secrets/postgres_dsn.txt
+docker compose -f compose.observability.yaml up -d
+```
+
+| Component | Local address |
 | --- | --- |
-| `3000` | Frontend |
-| `8080` | Gateway (public API) |
-| `8001` / `8002` | Auth / Shortener (direct, for debugging) |
-| `5432` / `6379` | Postgres / Redis |
-| `5672` / `15672` | RabbitMQ / management UI |
-| `8200` / `8201` | Vault API & UI / Vault Cluster |
+| Prometheus | [http://127.0.0.1:9090](http://127.0.0.1:9090) |
+| Loki API | `http://127.0.0.1:3100` |
+| Tempo query API | `http://127.0.0.1:3200` |
+| Alloy UI | [http://127.0.0.1:12345](http://127.0.0.1:12345) |
 
-Analytics, QR, Rate Limiter, Cleanup, and Notification publish no host ports — they are reached only on the internal Docker network or through the gateway.
+The current observability setup has known gaps tracked in the [local observability issues](docs/local/EPIC.md): Grafana is not yet deployed; Alloy's Compose healthcheck invokes `wget`, which is absent from the Alloy image; and the PostgreSQL exporter currently needs a dedicated least-privilege monitoring account. Prometheus receives application and exporter metrics through Alloy remote write, so Alloy-scraped targets may appear as `up` series rather than direct entries in Prometheus's Targets page.
 
----
+## Develop a service directly
 
-## Working on a Single Service
+Python services are separate `uv` projects. For example:
 
-Each Python service is a standalone `uv` project:
-
-```bash
+```sh
 cd auth-service
-uv sync
-uv run uvicorn app.main:app --reload     # API services
-uv run ruff check . && uv run mypy --strict .
-
+uv sync --frozen
+uv run ruff check .
+uv run mypy --strict .
 ```
 
-The frontend:
+The frontend can be run locally with:
 
-```bash
+```sh
 cd frontend
-npm install
-npm run dev                              # http://localhost:3000
-
+npm ci
+npm run dev
+npm run lint
+npm run build
 ```
 
-Every service vendors a small `shared/` module (config base, JWT utils, structured logging) so they share conventions without a runtime coupling.
+Each service README describes its endpoints, settings, and local run mode. The root Makefile does not currently provide a single application test-suite target; see the [local test-suite issue](docs/local/app/app-03-local-application-test-suite-and-coverage.md).
 
----
+## Data, reset, and recovery
 
-## Roadmap
+- `docker compose down` stops and removes containers but retains named volumes.
+- `docker compose down -v` also removes Compose-managed data volumes, including database and broker data. Use it only when you intend to reset that local data.
+- `make vault-down` stops Vault while retaining its data and local key files.
+- `make vault-clean` is destructive: it deletes Vault data, key files, logs, snapshots, and generated AppRole files. A subsequent initialization creates a new Vault state; do not run it if you need the current secrets.
+- `make vault-snapshot` writes a local Raft snapshot under `vault/snapshots/`; it is not an off-host backup or a completed restore test.
 
-The codebase is structured for a DevOps phase: container images per service, Kubernetes manifests (Cleanup becomes a CronJob, QR scales horizontally), CI running `ruff`/`mypy`/the frontend build, and the production upgrades flagged in the service READMEs (shared rate limiter for auth routes, click-event deduplication, analytics retention purge, ownership checks on stats).
+## Known application limitations
+
+The Analytics README documents current follow-up work: statistics authorization confirms that a user is authenticated but does not yet prove ownership of the requested short code; click-event processing is not yet idempotent against duplicate delivery; and old click-event retention cleanup is not implemented. These and the broader reliability/security work are tracked in the local epic. Do not treat this portfolio project as production-ready until its open risks are addressed and verified.
+
+## DevOps and SRE work plans
+
+- [Local epic and issue index](docs/local/README.md): Docker Compose, Vault, developer security, CI, observability, Kind, Helm, ArgoCD, testing, SRE controls, and operations.
+- [Cloud epic and issue index](docs/cloud/README.md): AWS foundations, VPC, EKS, managed PostgreSQL/Redis/RabbitMQ, AWS Secrets Manager, GitHub Actions OIDC, ArgoCD, observability, recovery, and cost controls.
+
+The epics distinguish implementation subtasks from whole-issue completion. A checked subtask does not mean that all acceptance criteria for its issue are complete.
+
+## Repository layout
+
+```text
+auth-service/             Authentication API
+shortener-service/        Link management and redirects
+analytics-service/        Analytics API and queue worker
+gateway/                  Public API gateway
+frontend/                 Next.js web application
+qr-service/               QR generation API
+rate-limiter-service/     Redis-backed rate limiting API
+cleanup-service/          Expiration worker
+notification-service/     Notification worker
+shared/                   Shared Python packages copied into service builds
+db/init/                  Local PostgreSQL database initialization
+vault/                    Local Vault configuration and lifecycle scripts
+observability/            Prometheus, Loki, Tempo, and Alloy configuration
+docs/local/               Local implementation epic and grouped issues
+docs/cloud/               AWS implementation epic and grouped issues
+```
