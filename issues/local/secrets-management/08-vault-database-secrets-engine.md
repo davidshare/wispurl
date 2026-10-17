@@ -13,7 +13,7 @@ related:
 Services receive short-lived, per-instance Postgres credentials from Vault instead of a shared static password.
 
 ## Current state
-All services use static `DATABASE_URL`s stored in KV with the Postgres superuser.
+Services use static `DATABASE_URL`s stored in KV, each with its own least-privilege login (`auth_svc`, `shortener_svc`, `analytics_svc`, `cleanup_svc`) rather than the superuser. These static passwords are what the database secrets engine would replace with short-lived ones; the roles' grants are a ready-made template for the engine's creation statements.
 
 ## Subtasks
 - [ ] Enable the `database` secrets engine and configure the Postgres connection with a dedicated Vault admin role

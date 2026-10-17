@@ -57,6 +57,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
       # Password for the read-only wispurl_monitor role used by the metrics exporter.
       POSTGRES_MONITOR_PASSWORD: ${POSTGRES_MONITOR_PASSWORD:-}
+      # Passwords for the per-service logins (db/init/create-service-roles.sh).
+      POSTGRES_AUTH_PASSWORD: ${POSTGRES_AUTH_PASSWORD:-}
+      POSTGRES_SHORTENER_PASSWORD: ${POSTGRES_SHORTENER_PASSWORD:-}
+      POSTGRES_ANALYTICS_PASSWORD: ${POSTGRES_ANALYTICS_PASSWORD:-}
+      POSTGRES_CLEANUP_PASSWORD: ${POSTGRES_CLEANUP_PASSWORD:-}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

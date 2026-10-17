@@ -90,12 +90,21 @@ Generate a separate random value for each secret below by running `openssl rand 
 | --- | --- |
 | `JWT_SECRET` | A random value |
 | `INTERNAL_API_KEY` | A random value |
-| `POSTGRES_PASSWORD` | A random value |
-| `AUTH_DATABASE_URL`, `SHORTENER_DATABASE_URL`, `ANALYTICS_DATABASE_URL` | Replace the `postgres:postgres` credentials with `postgres:<POSTGRES_PASSWORD>` |
+| `POSTGRES_PASSWORD` | A random value (the superuser, for administration only) |
+| `POSTGRES_AUTH_PASSWORD`, `POSTGRES_SHORTENER_PASSWORD`, `POSTGRES_ANALYTICS_PASSWORD`, `POSTGRES_CLEANUP_PASSWORD` | A random value each |
+| `AUTH_DATABASE_URL`, `SHORTENER_DATABASE_URL`, `ANALYTICS_DATABASE_URL`, `CLEANUP_DATABASE_URL` | Replace each `replace-with-...` placeholder with the matching password above |
+| `POSTGRES_MONITOR_PASSWORD` | A random value (used in Step 7) |
 | `RABBITMQ_DEFAULT_PASS` | A random value |
 | `RABBITMQ_URL` | `amqp://appuser:<RABBITMQ_DEFAULT_PASS>@rabbitmq:5672/` |
 
-PostgreSQL applies `POSTGRES_PASSWORD` only when its data volume is first created. If you change it later, see [Troubleshooting](#troubleshooting).
+No service connects as the PostgreSQL superuser. On first start, `db/init/create-service-roles.sh` creates one login per service: `auth_svc`, `shortener_svc` and `analytics_svc` each own only their own database, and `cleanup_svc` can only read expired links and mark them inactive. Each database refuses connections from every other login.
+
+PostgreSQL applies these passwords only when its data volume is first created. If you change them later, or are upgrading a database created before the service logins existed, recreate the Postgres container and re-run the script, then update the connection strings in Vault (Step 4's `make vault-bootstrap` does this, or `vault kv patch` per service):
+
+```sh
+docker compose up -d postgres
+docker compose exec postgres bash /docker-entrypoint-initdb.d/create-service-roles.sh
+```
 
 `.env` is ignored by Git. Never commit it, generated Vault key material, local certificates, AppRole credentials, or the observability PostgreSQL DSN.
 

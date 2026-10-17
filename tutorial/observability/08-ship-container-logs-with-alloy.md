@@ -205,7 +205,7 @@ The six HTTP services already merge it with the metrics labels (`<<: [*prometheu
       <<: *python-log-labels
 ```
 
-> For example `docker-compose.yml` lines 264–265. The same goes for `cleanup-service` and `notification-service`.
+> For example `docker-compose.yml` lines 269–270. The same goes for `cleanup-service` and `notification-service`.
 
 Rebuild (the logging change is in the images) and recreate:
 

@@ -25,10 +25,10 @@ When an issue becomes `done`, update its `status:` front matter and tick the mat
 | 7. [Reliability and SRE (Local Validation)](#7-reliability-and-sre-local-validation) | 2 | 4 | 8 | 14 |
 | 8. [Backups and Disaster Recovery (Local)](#8-backups-and-disaster-recovery-local) | 1 | 0 | 7 | 8 |
 | 9. [Local Kubernetes and Packaging](#9-local-kubernetes-and-packaging) | 0 | 0 | 21 | 21 |
-| 10. [Security and Compliance (Local)](#10-security-and-compliance-local) | 0 | 1 | 4 | 5 |
+| 10. [Security and Compliance (Local)](#10-security-and-compliance-local) | 0 | 2 | 3 | 5 |
 | 11. [Operations and Incident Response (Local)](#11-operations-and-incident-response-local) | 0 | 1 | 5 | 6 |
 | 12. [Cost and Capacity Management (Local)](#12-cost-and-capacity-management-local) | 0 | 1 | 2 | 3 |
-| **Total** | **36** | **14** | **82** | **132** |
+| **Total** | **36** | **15** | **81** | **132** |
 
 ## 1. Application Foundations
 
@@ -177,7 +177,7 @@ When an issue becomes `done`, update its `status:` front matter and tick the mat
 
 ## 10. Security and Compliance (Local)
 
-- [ ] [RBAC and least privilege enforced in local cluster](security-compliance/01-rbac-least-privilege.md)
+- [ ] [RBAC and least privilege enforced in local cluster](security-compliance/01-rbac-least-privilege.md) _(partial)_
 - [ ] [Network segmentation / default-deny NetworkPolicies applied](security-compliance/02-network-segmentation.md)
 - [ ] [TLS used locally wherever practical](security-compliance/03-local-tls.md) _(partial)_
 - [ ] [Threat model drafted for the application architecture](security-compliance/04-threat-model.md)

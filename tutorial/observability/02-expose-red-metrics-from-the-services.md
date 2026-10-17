@@ -282,7 +282,7 @@ Add the variable to each of the six HTTP services in `docker-compose.yml`, in th
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
 ```
 
-> For example `docker-compose.yml` lines 112–113 (auth-service).
+> For example `docker-compose.yml` lines 117–118 (auth-service).
 
 Only the Gunicorn services get it. The queue workers (analytics consumer, cleanup, notification) run as single processes and don't serve `/metrics`.
 
