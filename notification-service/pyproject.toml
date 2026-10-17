@@ -9,6 +9,7 @@ dependencies = [
     "pydantic-settings==2.14.1",
     "structlog==26.1.0",
     "wispurl-metrics",
+    "wispurl-otel",
     "wispurl-vault-client",
 ]
 
@@ -38,3 +39,4 @@ plugins = ["pydantic.mypy"]
 [tool.uv.sources]
 wispurl-vault-client = { path = "../shared/vault_client", editable = true }
 wispurl-metrics = { path = "../shared/wispurl_metrics", editable = true }
+wispurl-otel = { path = "../shared/wispurl_otel", editable = true }

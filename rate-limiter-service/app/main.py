@@ -6,6 +6,7 @@ request-correlation middleware, exception handlers, and the ``/check`` router.
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -14,10 +15,11 @@ import structlog
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from opentelemetry.instrumentation.utils import suppress_instrumentation
 from redis.asyncio import Redis
 from starlette.responses import Response as StarletteResponse
-
 from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
+from wispurl_otel import instrument_fastapi, instrument_redis, setup_otel
 
 from app.config import get_settings
 from app.errors.exceptions import (
@@ -32,6 +34,10 @@ from shared.logging_config import (
     clear_request_context,
     configure_logging,
 )
+
+setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "rate-limiter-service"))
+# One span per Redis command; must run before the Redis client is created.
+instrument_redis()
 
 logger = structlog.get_logger()
 
@@ -87,6 +93,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    instrument_fastapi(app)
+
     @app.middleware("http")
     async def request_context_middleware(
         request: Request,
@@ -104,7 +112,9 @@ def create_app() -> FastAPI:
         return response
 
     # Register the prometheus middleware for metrics collection
-    app.add_middleware(PrometheusMiddleware, service_name="rate-limiter")
+    # Same name as OTEL_SERVICE_NAME and the Compose service, so metrics, logs
+    # and traces for this service can be matched up.
+    app.add_middleware(PrometheusMiddleware, service_name="rate-limiter-service")
 
     app.add_exception_handler(RateLimiterDomainError, handle_domain_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
@@ -121,7 +131,9 @@ def create_app() -> FastAPI:
     async def health() -> JSONResponse:
         """Readiness probe verifying Redis connectivity."""
         redis: Redis = app.state.redis
-        await redis.ping()
+        # Probes run every few seconds; don't turn each ping into a trace.
+        with suppress_instrumentation():
+            await redis.ping()
         return JSONResponse({"status": "ok"})
 
     logger.info("rate_limiter_configured")

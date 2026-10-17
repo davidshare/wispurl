@@ -1,0 +1,50 @@
+apiVersion: 1
+
+# Fixed UIDs let dashboards and the cross-links below refer to each data source.
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 15s
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      maxLines: 1000
+      # Each log line carries trace_id as structured metadata (added by Alloy).
+      # This turns it into a "View trace" link that opens the trace in Tempo.
+      derivedFields:
+        - name: TraceID
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: tempo
+          url: "$${__value.raw}"
+          urlDisplayLabel: View trace
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      # From any span, jump to the logs that service wrote during that trace.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        filterByTraceID: true
+        tags:
+          - key: service.name
+            value: service
+      # Service map built from Tempo's metrics-generator series in Prometheus.
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true

@@ -7,6 +7,7 @@ resources, nothing per-request is persisted.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
@@ -16,6 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.responses import Response as StarletteResponse
 from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
+from wispurl_otel import instrument_fastapi, setup_otel
 
 from app.config import get_settings
 from app.errors.exceptions import (
@@ -30,6 +32,8 @@ from shared.logging_config import (
     clear_request_context,
     configure_logging,
 )
+
+setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "qr-service"))
 
 logger = structlog.get_logger()
 
@@ -63,6 +67,8 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    instrument_fastapi(app)
+
     @app.middleware("http")
     async def request_context_middleware(
         request: Request,
@@ -80,7 +86,9 @@ def create_app() -> FastAPI:
         return response
 
     # Register the prometheus middleware for metrics collection
-    app.add_middleware(PrometheusMiddleware, service_name="qr")
+    # Same name as OTEL_SERVICE_NAME and the Compose service, so metrics, logs
+    # and traces for this service can be matched up.
+    app.add_middleware(PrometheusMiddleware, service_name="qr-service")
 
     app.add_exception_handler(QrDomainError, handle_domain_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)

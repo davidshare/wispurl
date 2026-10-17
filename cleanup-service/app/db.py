@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from wispurl_otel import instrument_sqlalchemy
 
 from app.config import get_settings
 
@@ -40,6 +41,8 @@ engine: AsyncEngine = create_async_engine(
         ),
     },
 )
+# One span per SQL statement, nested under the request or message span.
+instrument_sqlalchemy(engine)
 SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 metadata = MetaData()

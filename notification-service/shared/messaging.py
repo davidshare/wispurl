@@ -37,9 +37,13 @@ from aio_pika.abc import (
     AbstractQueue,
     AbstractRobustConnection,
 )
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind
 from pydantic import BaseModel, ConfigDict, ValidationError
+from wispurl_otel import extract_trace_context, inject_trace_context
 
 logger = structlog.get_logger()
+tracer = trace.get_tracer(__name__)
 
 EXCHANGE_NAME = "events"
 DLQ_NAME = "events.dlq"
@@ -142,13 +146,30 @@ class EventPublisher:
 
     async def publish(self, envelope: EventEnvelope, *, routing_key: str) -> None:
         """Publish ``envelope`` under ``routing_key`` (awaits the broker confirm)."""
-        message = Message(
-            body=envelope.model_dump_json().encode("utf-8"),
-            delivery_mode=DeliveryMode.PERSISTENT,
-            content_type="application/json",
-            headers={"x-attempt": 1, "x-request-id": envelope.request_id or ""},
-        )
-        await self._exchange.publish(message, routing_key=routing_key)
+        # A PRODUCER span for the publish; its context travels in the headers so
+        # the consumer's span joins the same trace.
+        with tracer.start_as_current_span(
+            f"{routing_key} publish",
+            kind=SpanKind.PRODUCER,
+            attributes={
+                "messaging.system": "rabbitmq",
+                "messaging.operation.type": "send",
+                "messaging.destination.name": EXCHANGE_NAME,
+                "messaging.rabbitmq.destination.routing_key": routing_key,
+            },
+        ):
+            headers: dict[str, Any] = {
+                "x-attempt": 1,
+                "x-request-id": envelope.request_id or "",
+            }
+            inject_trace_context(headers)
+            message = Message(
+                body=envelope.model_dump_json().encode("utf-8"),
+                delivery_mode=DeliveryMode.PERSISTENT,
+                content_type="application/json",
+                headers=headers,
+            )
+            await self._exchange.publish(message, routing_key=routing_key)
 
 
 async def create_publisher(connection: AbstractRobustConnection) -> EventPublisher:
@@ -227,40 +248,55 @@ async def _process_message(
     from shared.logging_config import bind_request_id, clear_request_context
 
     bind_request_id(_header_str(message, "x-request-id"))
-    try:
+    # A CONSUMER span whose parent is the producer's span, read from the
+    # message headers. Without this the consumer would start a new trace.
+    with tracer.start_as_current_span(
+        f"{queue_name} process",
+        context=extract_trace_context(message.headers),
+        kind=SpanKind.CONSUMER,
+        attributes={
+            "messaging.system": "rabbitmq",
+            "messaging.operation.type": "process",
+            "messaging.destination.name": queue_name,
+        },
+    ) as span:
         try:
-            envelope = EventEnvelope.model_validate_json(message.body)
-        except ValidationError as exc:
-            logger.warning("event_malformed_dead_lettered", error=str(exc))
-            await _dead_letter(channel, message)
-            await message.ack()
-            return
-
-        attempt = _header_int(message, "x-attempt", 1)
-        try:
-            await handler(envelope)
-            await message.ack()
-        except Exception as exc:  # noqa: BLE001 - bounded retry, then dead-letter
-            if attempt >= max_attempts:
-                logger.error(
-                    "event_dropped_to_dlq",
-                    event_type=envelope.event,
-                    attempt=attempt,
-                    error=str(exc),
-                )
+            try:
+                envelope = EventEnvelope.model_validate_json(message.body)
+            except ValidationError as exc:
+                logger.warning("event_malformed_dead_lettered", error=str(exc))
                 await _dead_letter(channel, message)
                 await message.ack()
-            else:
-                logger.warning(
-                    "event_retry",
-                    event_type=envelope.event,
-                    attempt=attempt,
-                    error=str(exc),
-                )
-                await _republish_for_retry(channel, message, queue_name, attempt + 1)
+                return
+
+            attempt = _header_int(message, "x-attempt", 1)
+            try:
+                await handler(envelope)
                 await message.ack()
-    finally:
-        clear_request_context()
+            except Exception as exc:  # noqa: BLE001 - bounded retry, then dead-letter
+                span.record_exception(exc)
+                if attempt >= max_attempts:
+                    logger.error(
+                        "event_dropped_to_dlq",
+                        event_type=envelope.event,
+                        attempt=attempt,
+                        error=str(exc),
+                    )
+                    await _dead_letter(channel, message)
+                    await message.ack()
+                else:
+                    logger.warning(
+                        "event_retry",
+                        event_type=envelope.event,
+                        attempt=attempt,
+                        error=str(exc),
+                    )
+                    await _republish_for_retry(
+                        channel, message, queue_name, attempt + 1
+                    )
+                    await message.ack()
+        finally:
+            clear_request_context()
 
 
 async def run_consumer(

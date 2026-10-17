@@ -11,8 +11,11 @@ only so the same logic runs as a plain Compose container in the local stack.
 from __future__ import annotations
 
 import asyncio
+import os
 
 import structlog
+from opentelemetry import trace
+from wispurl_otel import setup_otel
 
 from app.config import get_settings
 from app.publisher import publish_link_expired
@@ -21,6 +24,7 @@ from shared import messaging
 from shared.logging_config import configure_logging
 
 logger = structlog.get_logger()
+tracer = trace.get_tracer(__name__)
 
 
 async def run_once(publisher: messaging.EventPublisher, batch_size: int) -> None:
@@ -48,6 +52,7 @@ async def run_once(publisher: messaging.EventPublisher, batch_size: int) -> None
 
 async def main() -> None:
     """Connect to the broker and run the sweep loop forever (with backoff)."""
+    setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "cleanup-service"))
     settings = get_settings()
     configure_logging("cleanup-service", settings.log_level)
 
@@ -63,7 +68,9 @@ async def main() -> None:
                 )
                 backoff = 1.0
                 while True:
-                    await run_once(publisher, settings.batch_size)
+                    # One trace per sweep: its SQL and publish spans nest under it.
+                    with tracer.start_as_current_span("cleanup sweep"):
+                        await run_once(publisher, settings.batch_size)
                     await asyncio.sleep(settings.cleanup_interval_seconds)
         except asyncio.CancelledError:
             raise

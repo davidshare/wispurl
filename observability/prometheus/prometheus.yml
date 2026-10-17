@@ -24,3 +24,47 @@ scrape_configs:
         labels:
           environment: docker
           application: observability
+  # The rest of the observability stack, scraped directly so that a failure in
+  # any of them shows up as a DOWN target.
+  - job_name: grafana
+    static_configs:
+      - targets:
+          - grafana:3000
+        labels:
+          environment: docker
+          application: observability
+
+  - job_name: loki
+    static_configs:
+      - targets:
+          - loki:3100
+        labels:
+          environment: docker
+          application: observability
+
+  - job_name: tempo
+    static_configs:
+      - targets:
+          - tempo:3200
+        labels:
+          environment: docker
+          application: observability
+
+  - job_name: alertmanager
+    static_configs:
+      - targets:
+          - alertmanager:9093
+        labels:
+          environment: docker
+          application: observability
+
+# Alert rules, evaluated every evaluation_interval.
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# Where firing alerts are sent.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093

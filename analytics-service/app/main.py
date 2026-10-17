@@ -3,9 +3,9 @@
 Wires configuration, structured logging, request-correlation middleware, exception
 handlers, and the events/stats routers.
 """
-
 from __future__ import annotations
 
+import os
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
@@ -14,9 +14,11 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from opentelemetry.instrumentation.utils import suppress_instrumentation
 from sqlalchemy import text
 from starlette.responses import Response as StarletteResponse
 from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
+from wispurl_otel import instrument_fastapi, setup_otel
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -33,6 +35,8 @@ from shared.logging_config import (
     clear_request_context,
     configure_logging,
 )
+
+setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "analytics-service"))
 
 logger = structlog.get_logger()
 
@@ -66,6 +70,8 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    instrument_fastapi(app)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
@@ -93,7 +99,9 @@ def create_app() -> FastAPI:
         return response
 
     # Register the prometheus middleware for metrics collection
-    app.add_middleware(PrometheusMiddleware, service_name="analytics")
+    # Same name as OTEL_SERVICE_NAME and the Compose service, so metrics, logs
+    # and traces for this service can be matched up.
+    app.add_middleware(PrometheusMiddleware, service_name="analytics-service")
 
     app.add_exception_handler(AnalyticsDomainError, handle_domain_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
@@ -109,8 +117,10 @@ def create_app() -> FastAPI:
     @app.get("/health", status_code=status.HTTP_200_OK, tags=["health"])
     async def health() -> JSONResponse:
         """Readiness probe verifying database connectivity."""
-        async with SessionLocal() as session:
-            await session.execute(text("SELECT 1"))
+        # Probes run every few seconds; don't turn each one into a database trace.
+        with suppress_instrumentation():
+            async with SessionLocal() as session:
+                await session.execute(text("SELECT 1"))
         return JSONResponse({"status": "ok"})
 
     logger.info("analytics_service_configured")

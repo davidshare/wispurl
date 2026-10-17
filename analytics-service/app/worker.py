@@ -14,8 +14,10 @@ are detected exactly once.
 from __future__ import annotations
 
 import asyncio
+import os
 
 import structlog
+from wispurl_otel import setup_otel
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -39,6 +41,9 @@ _MAX_ATTEMPTS = 5
 
 async def main() -> None:
     """Connect, then consume click events forever (reconnecting with backoff)."""
+    setup_otel(
+        service_name=os.getenv("OTEL_SERVICE_NAME", "analytics-consumer-service")
+    )
     settings = get_settings()
     configure_logging("analytics-consumer", settings.log_level)
     milestones = settings.milestone_values

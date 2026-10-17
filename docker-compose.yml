@@ -1,3 +1,41 @@
+name: wispurl
+
+# =========================================================================
+# YAML ANCHORS FOR OTEL CONFIGURATION
+# =========================================================================
+# Alloy scrapes /metrics from containers that carry these labels.
+x-prometheus-labels: &prometheus-labels
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: /metrics
+
+# Alloy parses these containers' logs as Python JSON logs (plus Gunicorn lines).
+x-python-log-labels: &python-log-labels
+  logging.wispurl/format: python
+
+x-otel-env: &otel-env
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: none
+  OTEL_LOGS_EXPORTER: none
+
+  OTEL_PROPAGATORS: tracecontext,baggage
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local,service.version=1.0.0
+
+  # Sampling: keep every trace locally. parentbased_ means a service follows the
+  # caller's decision, so a trace is never half-recorded. In production use
+  # parentbased_traceidratio with OTEL_TRACES_SAMPLER_ARG=0.1 (10%).
+  OTEL_TRACES_SAMPLER: parentbased_always_on
+  # Export limits: spans wait at most 5 s before being sent in batches of up to
+  # 512; at most 2048 wait in memory (extra spans are dropped, never blocking a
+  # request). The Python exporter reads the timeout in seconds.
+  OTEL_BSP_SCHEDULE_DELAY: "5000"
+  OTEL_BSP_MAX_EXPORT_BATCH_SIZE: "512"
+  OTEL_BSP_MAX_QUEUE_SIZE: "2048"
+  OTEL_EXPORTER_OTLP_TIMEOUT: "10"
+
 services:
   postgres:
     image: postgres:18
@@ -17,6 +55,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      # Password for the read-only wispurl_monitor role used by the metrics exporter.
+      POSTGRES_MONITOR_PASSWORD: ${POSTGRES_MONITOR_PASSWORD:-}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -35,6 +75,7 @@ services:
         condition: service_healthy
       vault-unseal:
         condition: service_completed_successfully
+
   pgadmin:
     image: dpage/pgadmin4:9.8
     container_name: wispurl-pgadmin
@@ -58,7 +99,19 @@ services:
       context: ./auth-service
       additional_contexts:
         shared_lib: ./shared
+
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
+
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "auth-service"
+      # Gunicorn runs several workers; aggregate their metrics (see entrypoint.sh).
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -97,7 +150,19 @@ services:
       context: ./shortener-service
       additional_contexts:
         shared_lib: ./shared
+
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "shortener-service"
+      # Gunicorn runs several workers; aggregate their metrics (see entrypoint.sh).
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -138,7 +203,19 @@ services:
       context: ./analytics-service
       additional_contexts:
         shared_lib: ./shared
+
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "analytics-service"
+      # Gunicorn runs several workers; aggregate their metrics (see entrypoint.sh).
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -182,8 +259,17 @@ services:
       context: ./analytics-service
       additional_contexts:
         shared_lib: ./shared
+    
     entrypoint: ["python", "-m", "app.worker"]
+    labels:
+      <<: *python-log-labels
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "analytics-consumer-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -217,7 +303,16 @@ services:
       context: ./cleanup-service
       additional_contexts:
         shared_lib: ./shared
+    
+    labels:
+      <<: *python-log-labels
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "cleanup-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -253,7 +348,16 @@ services:
       context: ./notification-service
       additional_contexts:
         shared_lib: ./shared
+    
+    labels:
+      <<: *python-log-labels
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "notification-service"
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -285,7 +389,19 @@ services:
       context: ./rate-limiter-service
       additional_contexts:
         shared_lib: ./shared
+
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "rate-limiter-service"
+      # Gunicorn runs several workers; aggregate their metrics (see entrypoint.sh).
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -323,7 +439,19 @@ services:
       context: ./qr-service
       additional_contexts:
         shared_lib: ./shared
+    
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "qr-service"
+      # Gunicorn runs several workers; aggregate their metrics (see entrypoint.sh).
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
+      
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -362,7 +490,19 @@ services:
       context: ./gateway
       additional_contexts:
         shared_lib: ./shared
+
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
+    
     environment:
+      # Merge the common OTEL env vars
+      <<: *otel-env
+      
+      # Override/Add service-specific vars
+      OTEL_SERVICE_NAME: "gateway"
+      # Gunicorn runs several workers; aggregate their metrics (see entrypoint.sh).
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
+
       VAULT_ADDR: https://vault:8200
       VAULT_ROLE_ID_FILE: /run/secrets/vault-approle.json
       VAULT_CACERT: /run/secrets/vault-ca.pem
@@ -454,6 +594,12 @@ services:
 
   rabbitmq:
     image: rabbitmq:4-management
+    command:
+      - sh
+      - -c
+      - |
+        rabbitmq-plugins enable --offline rabbitmq_prometheus &&
+        rabbitmq-server
     environment:
       # Non-default creds: RabbitMQ's built-in "guest" user may only connect from
       # localhost, so services on the Docker network must authenticate as a real user.
@@ -521,7 +667,7 @@ services:
       start_period: 10s
 
     networks:
-        - wispurl-network
+      - wispurl-network
 
   vault-unseal:
     image: python:3.12-alpine
@@ -580,6 +726,7 @@ volumes:
     driver: local
   pgadmin_data:
     driver: local
+
 networks:
   wispurl-network:
     driver: bridge
