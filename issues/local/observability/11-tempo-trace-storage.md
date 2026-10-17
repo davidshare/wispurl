@@ -20,7 +20,7 @@ Tempo runs with OTLP/Jaeger receivers, local storage, 744h block retention and a
 - [x] OTLP receivers (fed by Alloy)
 - [x] Block retention configured
 - [ ] Add Tempo as a Grafana data source (with traces→logs and service graph)
-- [ ] Enable metrics-generator processors (`service-graphs`, `span-metrics`) in overrides
+- [x] Enable metrics-generator processors (`service-graphs`, `span-metrics`) in overrides
 - [ ] Add a healthcheck and pin the image
 - [ ] Stop publishing unused receiver ports (14250/14268) to the host if not needed
 

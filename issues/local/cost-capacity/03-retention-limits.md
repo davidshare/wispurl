@@ -18,7 +18,7 @@ Prometheus keeps 15d and Tempo keeps 744h blocks. Loki's `retention_period` is s
 ## Subtasks
 - [x] Prometheus time retention (15d)
 - [x] Tempo block retention (744h)
-- [ ] Restore Loki `compactor` with `retention_enabled: true` and `delete_request_store: filesystem`
+- [x] Restore Loki `compactor` with `retention_enabled: true` and `delete_request_store: filesystem`
 - [ ] Add Prometheus `--storage.tsdb.retention.size`
 - [ ] Set Docker `logging` options (`max-size`, `max-file`) on every service
 - [ ] Rotate the Vault audit log

@@ -2,7 +2,7 @@ name: observability
 
 services:
   prometheus:
-    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.15.0}
     restart: unless-stopped
     container_name: prometheus
     command:
@@ -26,7 +26,7 @@ services:
       start_period: 15s
   
   loki:
-    image: ${LOKI_IMAGE:-grafana/loki:latest}
+    image: ${LOKI_IMAGE:-grafana/loki:3.7.8}
     restart: unless-stopped
     command:
       - -config.file=/etc/loki/loki.yaml
@@ -45,7 +45,7 @@ services:
       start_period: 60s
 
   tempo:
-    image: ${TEMPO_IMAGE:-grafana/tempo:latest}
+    image: ${TEMPO_IMAGE:-grafana/tempo:3.1.0}
     restart: unless-stopped
     command:
       - -config.file=/etc/tempo/tempo.yaml
@@ -63,7 +63,7 @@ services:
       - observability
 
   alloy:
-    image: ${ALLOY_IMAGE:-grafana/alloy:v1.19.2}
+    image: ${ALLOY_IMAGE:-grafana/alloy:v1.20.1}
     restart: unless-stopped
     command:
       - run
@@ -90,7 +90,12 @@ services:
       - observability
       - wispurl-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:12345/-/ready"]
+      # The Alloy image has bash but no wget/curl/nc, so speak HTTP over /dev/tcp.
+      test:
+        - CMD
+        - bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/12345 && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3 && head -1 <&3 | grep -q ' 200 '
       interval: 30s
       timeout: 10s
       retries: 3

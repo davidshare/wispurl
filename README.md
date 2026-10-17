@@ -165,12 +165,12 @@ The frontend, gateway, and two debug APIs are published on all host interfaces. 
 
 ### Step 7 (optional): Start the observability stack
 
-The observability stack runs as a separate Compose project and attaches to the application network, so Step 5 must be running first. Alloy's PostgreSQL exporter reads its connection string from an ignored secret file built from your `.env` values:
+The observability stack runs as a separate Compose project and attaches to the application network, so Step 5 must be running first. Alloy's PostgreSQL exporter reads its connection string from an ignored secret file built from your `.env` values. The file must not end with a newline: Alloy fails to parse a DSN with a trailing `\n` and restarts in a loop.
 
 ```sh
 mkdir -p observability/secrets
 set -a; . ./.env; set +a
-printf 'postgresql://%s:%s@postgres:5432/%s?sslmode=disable\n' \
+printf 'postgresql://%s:%s@postgres:5432/%s?sslmode=disable' \
   "$POSTGRES_USER" "$POSTGRES_PASSWORD" "$POSTGRES_DB" > observability/secrets/postgres_dsn.txt
 chmod 600 observability/secrets/postgres_dsn.txt
 

@@ -35,10 +35,13 @@ metrics_generator:
     path: /var/tempo/generator/wal
     remote_write:
       - url: http://prometheus:9090/api/v1/write
-        send_exemplars: true
 
 overrides:
   defaults:
+    # The generator does nothing until processors are enabled. These two derive
+    # a service graph and request/error/duration metrics from spans.
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
     compaction:
       block_retention: 744h
     ingestion:
