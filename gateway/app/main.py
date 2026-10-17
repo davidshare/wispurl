@@ -5,9 +5,9 @@ request-correlation middleware, exception handlers, and the proxy routers. Route
 registration ORDER is significant — see :func:`create_app`.
 """
 
-import os
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from uuid import uuid4

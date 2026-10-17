@@ -19,7 +19,7 @@ Traces follow a request across the gateway, downstream services, the database an
 - [x] Shared `wispurl_otel` library (TracerProvider, OTLP exporter, resource attributes)
 - [x] Inbound FastAPI instrumentation in all 6 HTTP services
 - [x] Compose OTel env pointing at `alloy:4317`
-- [ ] Fix import order in all six `app/main.py` files
+- [x] Fix import order in all six `app/main.py` files
 - [ ] Instrument outbound httpx so trace context propagates (gateway → services, shortener → analytics/rate-limiter)
 - [ ] Instrument SQLAlchemy and Redis
 - [ ] Instrument aio-pika publish/consume and inject/extract context in message headers
@@ -27,13 +27,13 @@ Traces follow a request across the gateway, downstream services, the database an
 - [ ] Exclude `/health` and `/metrics` from tracing
 - [ ] Configure sampling and exporter timeout/queue limits
 - [ ] Add `trace_id`/`span_id` to structlog output
-- [ ] Verify services keep running when Alloy is down
+- [x] Verify services keep running when Alloy is down
 - [ ] Fill in `shared/wispurl_otel/README.md` (usage, env vars) and replace the placeholder `description` in its `pyproject.toml`
 
 ## Acceptance criteria
 - [ ] One request through the gateway appears as a single trace spanning at least two downstream services
 - [ ] A RabbitMQ analytics event shows linked producer/consumer spans
-- [ ] Stopping Alloy does not crash any service
+- [x] Stopping Alloy does not crash any service
 
 ## References
 - [shared/wispurl_otel/src/wispurl_otel/instrumentation.py](../../../shared/wispurl_otel/src/wispurl_otel/instrumentation.py)

@@ -67,77 +67,87 @@ More implementation and configuration detail is available in the service READMEs
 - **Developer security:** Gitleaks and pre-commit.
 - **Planned cloud platform:** AWS, EKS, ArgoCD, AWS Secrets Manager, Terraform, and GitHub Actions with OIDC.
 
-## Run the local application
+## Run the project locally
 
-### Requirements
+This is the complete first-run walkthrough, from a fresh clone to a working app. Run every command from the repository root. The first run takes a few minutes, mostly building images.
 
-- Docker with the Compose v2 plugin, with the Docker daemon running.
-- GNU Make.
-- OpenSSL for generating local Vault certificates.
-- Gitleaks and pre-commit for the developer hook setup. `make setup` can install them through Homebrew where available; on Linux, install Gitleaks first if the Makefile reports it is missing.
-- `uv` and Node.js/npm only if you plan to run a Python service or the frontend directly on the host.
+### Prerequisites
 
-### 1. Configure local values
+- Docker Desktop or Docker Engine with the Compose v2 plugin, with the Docker daemon running.
+- GNU Make, OpenSSL, and Python 3 (the Makefile uses `python3` to read Vault key files).
+- Gitleaks and pre-commit. Step 2 installs them through Homebrew where available; on Linux, install Gitleaks first if the Makefile reports it is missing.
+- Optional: `uv` and Node.js/npm, only if you plan to run a service or the frontend directly on the host.
 
-Copy the example file and replace its secret placeholders before bootstrapping Vault:
+### Step 1: Create your local configuration
 
 ```sh
 cp .env.example .env
-openssl rand -hex 32
 ```
 
-Generate separate random values and set at least `JWT_SECRET`, `INTERNAL_API_KEY`, and `POSTGRES_PASSWORD` in `.env`. Use the generated PostgreSQL password in all three database URLs. Set `RABBITMQ_DEFAULT_PASS` and make `RABBITMQ_URL` use the same RabbitMQ username and password. Hex values avoid URL-escaping problems in database and broker URLs.
+Generate a separate random value for each secret below by running `openssl rand -hex 32` once per value. Hex values avoid URL-escaping problems in database and broker URLs. Then edit `.env`:
+
+| Variable | Set it to |
+| --- | --- |
+| `JWT_SECRET` | A random value |
+| `INTERNAL_API_KEY` | A random value |
+| `POSTGRES_PASSWORD` | A random value |
+| `AUTH_DATABASE_URL`, `SHORTENER_DATABASE_URL`, `ANALYTICS_DATABASE_URL` | Replace the `postgres:postgres` credentials with `postgres:<POSTGRES_PASSWORD>` |
+| `RABBITMQ_DEFAULT_PASS` | A random value |
+| `RABBITMQ_URL` | `amqp://appuser:<RABBITMQ_DEFAULT_PASS>@rabbitmq:5672/` |
+
+PostgreSQL applies `POSTGRES_PASSWORD` only when its data volume is first created. If you change it later, see [Troubleshooting](#troubleshooting).
 
 `.env` is ignored by Git. Never commit it, generated Vault key material, local certificates, AppRole credentials, or the observability PostgreSQL DSN.
 
-### 2. Install the local secret-scanning hook
+### Step 2: Install the secret-scanning hook
 
 ```sh
 make setup
 ```
 
-Useful security commands:
+This installs Gitleaks and pre-commit and adds a Git hook that scans every commit for secrets.
 
-```sh
-make scan          # scan Git history
-make scan-staged   # scan staged content
-make run-hooks     # run configured pre-commit hooks across the repository
-```
-
-`make clean` uninstalls this repository's pre-commit hook; it does not delete project files or uninstall Gitleaks.
-
-### 3. Initialize and bootstrap Vault
-
-On a first run, generate local TLS material and start Vault with its unseal sidecar:
+### Step 3: Start and unseal Vault
 
 ```sh
 make vault-up
-docker logs vault-unseal
-make vault-status
+docker logs -f vault-unseal
+```
+
+`make vault-up` generates local TLS certificates (first run only) and starts Vault with its unseal sidecar. The sidecar initializes Vault on first boot, then unseals it. `docker logs -f` returns when the sidecar exits; the last line should be `vault-unseal: Vault is unsealed successfully.` Confirm with:
+
+```sh
+make vault-status    # expect "Sealed  false"
+```
+
+The unseal keys and root token are written to `vault/keys/.vault-keys`. Back that file up somewhere safe; without it a sealed Vault cannot be recovered. This is a local development design, not a production KMS-backed auto-unseal setup. The Vault UI is at [https://127.0.0.1:8200/ui](https://127.0.0.1:8200/ui); the local CA is not publicly trusted.
+
+### Step 4: Bootstrap Vault
+
+```sh
 make vault-bootstrap
 ```
 
-Wait for the sidecar to report that Vault is unsealed before running `make vault-bootstrap`. Bootstrap reads `.env`, enables the configured secrets engine and audit device, writes service-scoped policies, and creates AppRole credentials under ignored local state. Run it after a fresh initialization or deliberate Vault reset; rerunning it rewrites seeded secrets and reissues AppRole credentials.
+This reads `.env`, enables the KV secrets engine and audit log, writes a scoped policy per service, and creates AppRole credentials in `vault/approles/`. Run it before Step 5: Compose mounts those AppRole files into the services, so `docker compose up` fails without them.
 
-Vault uses local TLS certificates and protected local Shamir key material. This is a development setup, not a production KMS-backed auto-unseal design. The Vault UI is at [https://127.0.0.1:8200/ui](https://127.0.0.1:8200/ui); the local CA is not publicly trusted.
+Rerunning it rewrites the seeded secrets and reissues AppRole credentials. Do that after changing secrets in `.env` or after a deliberate Vault reset.
 
-### 4. Start the application stack
+### Step 5: Build and start the application
 
 ```sh
 docker compose up --build -d
 docker compose ps
-docker compose logs -f
 ```
 
-The stack contains PostgreSQL and its initialization scripts, Redis, RabbitMQ, Vault, the application services, and the frontend. Check the gateway health endpoint at [http://localhost:8080/health](http://localhost:8080/health) and open the web app at [http://localhost:3000](http://localhost:3000).
+Repeat `docker compose ps` until every service reports `healthy`. This starts PostgreSQL (and creates its databases), Redis, RabbitMQ, every service, and the frontend. Services apply their database migrations on startup.
 
-To stop containers while retaining persistent data:
+### Step 6: Check that it works
 
 ```sh
-docker compose down
+curl http://localhost:8080/health    # {"status":"ok"}
 ```
 
-### Local service addresses
+Open [http://localhost:3000](http://localhost:3000), sign up, create a short link, open it, and check that the click appears in the dashboard analytics.
 
 | Component | Host address | Host binding |
 | --- | --- | --- |
@@ -151,16 +161,19 @@ docker compose down
 | RabbitMQ management | `http://127.0.0.1:15672` | Loopback |
 | Vault UI/API | `https://127.0.0.1:8200` | Loopback |
 
-The frontend, gateway, and two debug APIs are currently published on all host interfaces by Compose. Treat this stack as a local development environment and do not expose it to untrusted networks. Internal services such as Analytics, QR, Cleanup, Rate Limiter, and Notification have no published host ports.
+The frontend, gateway, and two debug APIs are published on all host interfaces. Treat this stack as a local development environment and do not expose it to untrusted networks. Internal services such as Analytics, QR, Cleanup, Rate Limiter, and Notification have no published host ports.
 
-## Start local observability
+### Step 7 (optional): Start the observability stack
 
-Start the application Compose project first so its `wispurl_wispurl-network` network exists. Alloy's PostgreSQL exporter also needs the ignored secret file `observability/secrets/postgres_dsn.txt`. Put a PostgreSQL DSN in that file using host `postgres` and the database name, username, and password configured by `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` in `.env`. URL-encode the password if the DSN format you use requires it. Then restrict the file permissions:
+The observability stack runs as a separate Compose project and attaches to the application network, so Step 5 must be running first. Alloy's PostgreSQL exporter reads its connection string from an ignored secret file built from your `.env` values:
 
 ```sh
 mkdir -p observability/secrets
-# Write the DSN to observability/secrets/postgres_dsn.txt; do not commit it.
+set -a; . ./.env; set +a
+printf 'postgresql://%s:%s@postgres:5432/%s?sslmode=disable\n' \
+  "$POSTGRES_USER" "$POSTGRES_PASSWORD" "$POSTGRES_DB" > observability/secrets/postgres_dsn.txt
 chmod 600 observability/secrets/postgres_dsn.txt
+
 docker compose -f compose.observability.yaml up -d
 ```
 
@@ -171,7 +184,25 @@ docker compose -f compose.observability.yaml up -d
 | Tempo query API | `http://127.0.0.1:3200` |
 | Alloy UI | [http://127.0.0.1:12345](http://127.0.0.1:12345) |
 
-The current observability setup has known gaps tracked in the [local observability issues](docs/local/EPIC.md): Grafana is not yet deployed; Alloy's Compose healthcheck invokes `wget`, which is absent from the Alloy image; and the PostgreSQL exporter currently needs a dedicated least-privilege monitoring account. Prometheus receives application and exporter metrics through Alloy remote write, so Alloy-scraped targets may appear as `up` series rather than direct entries in Prometheus's Targets page.
+The current observability setup has known gaps tracked in the [local issues](issues/local/README.md): Grafana is not yet deployed; Alloy's Compose healthcheck invokes `wget`, which is absent from the Alloy image, so Alloy shows as unhealthy even when it works; and the PostgreSQL exporter still needs a dedicated least-privilege monitoring account. Prometheus receives application and exporter metrics through Alloy remote write, so Alloy-scraped targets appear as `up` series rather than as entries on Prometheus's Targets page.
+
+### Everyday commands
+
+| Task | Command |
+| --- | --- |
+| Stop everything, keep data | `docker compose down` (and `docker compose -f compose.observability.yaml down`) |
+| Start again later | `docker compose up -d` (the unseal sidecar runs again and unseals Vault) |
+| Rebuild one service after a code change | `docker compose up --build -d <service>` |
+| Follow a service's logs | `docker compose logs -f <service>` |
+| Check Vault | `make vault-status` |
+| List all Make targets | `make help` |
+
+### Troubleshooting
+
+- **`docker compose up` reports a missing `vault/approles/<service>.json`:** Vault hasn't been bootstrapped. Run Steps 3 and 4.
+- **Services exit with Vault connection or authentication errors:** run `make vault-status`. If Vault is sealed, run `make vault-unseal` and then `docker compose up -d`.
+- **`password authentication failed` from PostgreSQL after editing `.env`:** the password was fixed when the data volume was created. Either restore the old value, or reset local data with `docker compose down -v` (this deletes all database and broker data), then rerun `make vault-bootstrap` and Step 5.
+- **A port is already in use:** another process is bound to 3000, 8080, 5432, or another port in the table above. Stop it, or change the host port in `docker-compose.yml`.
 
 ## Develop a service directly
 

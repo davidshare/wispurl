@@ -5,9 +5,9 @@ handlers, and the QR router. The service is stateless: no database, no lifespan
 resources, nothing per-request is persisted.
 """
 
-import os
 from __future__ import annotations
 
+import os
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
 

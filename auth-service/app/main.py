@@ -1,7 +1,6 @@
-import os
-
 from __future__ import annotations
 
+import os
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
