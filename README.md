@@ -63,7 +63,7 @@ More implementation and configuration detail is available in the service READMEs
 - **Data and messaging:** PostgreSQL, Alembic, Redis, RabbitMQ, and `aio-pika`.
 - **Frontend:** Next.js, React, TypeScript, Tailwind CSS, TanStack Query, and Recharts.
 - **Local secrets:** HashiCorp Vault with Raft storage, local TLS, and scripted initialization/unsealing.
-- **Local observability:** Prometheus, Loki, Tempo, and Grafana Alloy. Grafana is not yet included in the local Compose stack.
+- **Local observability:** Prometheus, Loki, Tempo, Grafana Alloy, Grafana, and Alertmanager (with Mailpit catching alert emails locally); services are instrumented with OpenTelemetry.
 - **Developer security:** Gitleaks and pre-commit.
 - **Planned cloud platform:** AWS, EKS, ArgoCD, AWS Secrets Manager, Terraform, and GitHub Actions with OIDC.
 
@@ -165,26 +165,51 @@ The frontend, gateway, and two debug APIs are published on all host interfaces. 
 
 ### Step 7 (optional): Start the observability stack
 
-The observability stack runs as a separate Compose project and attaches to the application network, so Step 5 must be running first. Alloy's PostgreSQL exporter reads its connection string from an ignored secret file built from your `.env` values. The file must not end with a newline: Alloy fails to parse a DSN with a trailing `\n` and restarts in a loop.
+The observability stack runs as a separate Compose project and attaches to the application network, so Step 5 must be running first. It needs two secret files in the ignored `observability/secrets/` directory.
+
+**1. A read-only database login for the metrics exporter.** Set `POSTGRES_MONITOR_PASSWORD` in `.env` (generate it with `openssl rand -hex 24`). On a fresh database volume, `db/init/create-monitoring-role.sh` creates the `wispurl_monitor` role automatically. If your database already existed, recreate the Postgres container so it sees the new variable, then run the script once:
+
+```sh
+docker compose up -d postgres
+docker compose exec postgres bash /docker-entrypoint-initdb.d/create-monitoring-role.sh
+```
+
+Then write the exporter's connection string. The file must not end with a newline: Alloy fails to parse a DSN with a trailing `\n` and restarts in a loop.
 
 ```sh
 mkdir -p observability/secrets
 set -a; . ./.env; set +a
-printf 'postgresql://%s:%s@postgres:5432/%s?sslmode=disable' \
-  "$POSTGRES_USER" "$POSTGRES_PASSWORD" "$POSTGRES_DB" > observability/secrets/postgres_dsn.txt
+printf 'postgresql://wispurl_monitor:%s@postgres:5432/%s?sslmode=disable' \
+  "$POSTGRES_MONITOR_PASSWORD" "$POSTGRES_DB" > observability/secrets/postgres_dsn.txt
 chmod 600 observability/secrets/postgres_dsn.txt
+```
 
+**2. A Grafana admin password.**
+
+```sh
+printf '%s' "$(openssl rand -hex 16)" > observability/secrets/grafana_admin_password.txt
+chmod 600 observability/secrets/grafana_admin_password.txt
+```
+
+Start the stack:
+
+```sh
 docker compose -f compose.observability.yaml up -d
 ```
 
-| Component | Local address |
-| --- | --- |
-| Prometheus | [http://127.0.0.1:9090](http://127.0.0.1:9090) |
-| Loki API | `http://127.0.0.1:3100` |
-| Tempo query API | `http://127.0.0.1:3200` |
-| Alloy UI | [http://127.0.0.1:12345](http://127.0.0.1:12345) |
+| Component | Local address | Notes |
+| --- | --- | --- |
+| Grafana | [http://127.0.0.1:3001](http://127.0.0.1:3001) | User `admin`, password from `grafana_admin_password.txt`. Dashboards are in the **WispURL** folder |
+| Prometheus | [http://127.0.0.1:9090](http://127.0.0.1:9090) | Metrics and alert rules |
+| Alertmanager | [http://127.0.0.1:9093](http://127.0.0.1:9093) | Alert routing |
+| Mailpit | [http://127.0.0.1:8025](http://127.0.0.1:8025) | Catches alert emails locally |
+| Alloy UI | [http://127.0.0.1:12345](http://127.0.0.1:12345) | Collector pipeline status |
+| Loki API | `http://127.0.0.1:3100` | Logs (query through Grafana) |
+| Tempo API | `http://127.0.0.1:3200` | Traces (query through Grafana) |
 
-The current observability setup has known gaps tracked in the [local issues](issues/local/README.md): Grafana is not yet deployed; Alloy's Compose healthcheck invokes `wget`, which is absent from the Alloy image, so Alloy shows as unhealthy even when it works; and the PostgreSQL exporter still needs a dedicated least-privilege monitoring account. Prometheus receives application and exporter metrics through Alloy remote write, so Alloy-scraped targets appear as `up` series rather than as entries on Prometheus's Targets page.
+Prometheus receives application and exporter metrics through Alloy remote write, so Alloy-scraped targets appear as `up` series rather than as entries on Prometheus's Targets page. Each alert links to a page in [docs/runbooks](docs/runbooks/README.md).
+
+Alloy mounts the Docker and containerd sockets to discover containers, read their logs and collect container metrics. A read-only mount does not make those APIs read-only, so anyone who can change Alloy's configuration can control the containers on this host. That is acceptable on a developer machine, not on a shared server.
 
 ### Everyday commands
 

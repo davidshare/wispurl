@@ -22,7 +22,7 @@ discovery.docker "containers" {
 // 3. Docker metrics discovery
 //
 // Scrapes only containers that:
-//   - belong to Docker network wispurl_wispurl-network
+//   - belong to the app network (WISPURL_NETWORK, set in compose.observability.yaml)
 //   - declare prometheus.io/scrape=true
 //   - declare a numeric prometheus.io/port
 // =============================================================================
@@ -30,10 +30,10 @@ discovery.docker "containers" {
 discovery.relabel "metrics" {
   targets = discovery.docker.containers.targets
 
-  // 1. Keep only containers on the correct network
+  // 1. Keep only containers on the app network
   rule {
     source_labels = ["__meta_docker_network_name"]
-    regex         = "^wispurl_wispurl-network$"
+    regex         = sys.env("WISPURL_NETWORK")
     action        = "keep"
   }
 
@@ -58,10 +58,12 @@ discovery.relabel "metrics" {
     action        = "drop"
   }
 
-  // 5. Creates addresses such as auth-service:8000.
+  // 5. Scrape the container's own IP on the app network (e.g. 172.18.0.7:8000).
+  //    A Compose service name would resolve to any one replica, so scaled
+  //    services would be sampled at random instead of scraped individually.
   rule {
     source_labels = [
-      "__meta_docker_container_label_com_docker_compose_service",
+      "__meta_docker_network_ip",
       "__meta_docker_container_label_prometheus_io_port",
     ]
     regex        = "^(.+);([0-9]+)$"
@@ -82,6 +84,14 @@ discovery.relabel "metrics" {
     source_labels = ["__meta_docker_container_name"]
     regex         = "^/(.+)$"
     target_label  = "container"
+    replacement   = "$1"
+  }
+
+  // 7b. Use the container name as instance: it survives restarts, the IP doesn't.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "^/(.+)$"
+    target_label  = "instance"
     replacement   = "$1"
   }
 
@@ -124,7 +134,7 @@ discovery.relabel "logs" {
 
   rule {
     source_labels = ["__meta_docker_network_name"]
-    regex         = "^wispurl_wispurl-network$"
+    regex         = sys.env("WISPURL_NETWORK")
     action        = "keep"
   }
 
@@ -139,6 +149,14 @@ discovery.relabel "logs" {
     source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
     regex         = "^(.+)$"
     target_label  = "service"
+    replacement   = "$1"
+  }
+
+  // Python services opt in to JSON parsing with the label logging.wispurl/format=python.
+  rule {
+    source_labels = ["__meta_docker_container_label_logging_wispurl_format"]
+    regex         = "^(.+)$"
+    target_label  = "log_format"
     replacement   = "$1"
   }
 
@@ -160,7 +178,104 @@ loki.source.docker "wispurl" {
 
   relabel_rules = discovery.relabel.logs.rules
 
+  forward_to = [loki.process.wispurl.receiver]
+}
+
+loki.process "wispurl" {
   forward_to = [loki.write.loki.receiver]
+
+  // 4a. Drop probe noise (healthchecks and scrapes in access logs) first, line by
+  //     line, so a probe line can never be glued onto a real error below.
+  stage.drop {
+    expression          = "(GET|HEAD) /(health|ready|live|metrics)\\b"
+    drop_counter_reason = "probe_noise"
+  }
+
+  // 4b. Python services: a crash prints a plain-text traceback over many lines.
+  //     Glue those lines onto the line that started them, so one error is one
+  //     log entry. New entries start with "{" (JSON) or "[2026-..." (Gunicorn).
+  stage.match {
+    selector = "{log_format=\"python\"}"
+
+    stage.multiline {
+      firstline     = "^(\\{|\\[\\d{4}-\\d{2}-\\d{2} )"
+      max_wait_time = "3s"
+      max_lines     = 500
+    }
+  }
+
+  // 4c. Redact secrets in every container's logs before they leave this host.
+  //     The apps already scrub known secret fields; this is the safety net.
+  stage.replace {
+    expression = "(?i)bearer\\s+([A-Za-z0-9._~+/-]+=*)"
+    replace    = "[REDACTED]"
+  }
+
+  stage.replace {
+    expression = "(eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+)"
+    replace    = "[REDACTED_JWT]"
+  }
+
+  // Passwords inside connection URLs: the text between "user:" and "@host".
+  stage.replace {
+    expression = "[a-zA-Z][a-zA-Z0-9+.-]*://[^:/@\\s\"]+:([^@/\\s\"]+)@"
+    replace    = "[REDACTED]"
+  }
+
+  // password=..., "token": "...", api_key: ...
+  stage.replace {
+    expression = "(?i)\"?(?:password|passwd|secret|api[_-]?key|token)\"?\\s*[:=]\\s*\"?([^\"\\s,}]+)"
+    replace    = "[REDACTED]"
+  }
+
+  // Vault tokens (hvs./hvb./hvr. prefixes).
+  stage.replace {
+    expression = "(hv[sbr]\\.[A-Za-z0-9_-]{20,})"
+    replace    = "[REDACTED_VAULT_TOKEN]"
+  }
+
+  // 4d. Python services: pull fields out of the JSON log line.
+  stage.match {
+    selector = "{log_format=\"python\"}"
+
+    stage.json {
+      expressions = {
+        level      = "level",
+        request_id = "request_id",
+        trace_id   = "trace_id",
+        span_id    = "span_id",
+      }
+    }
+
+    // Gunicorn's own lines are plain text: "[2026-10-17 13:30:37 +0000] [1] [INFO] ..."
+    stage.regex {
+      expression = "^\\[[^\\]]+\\] \\[\\d+\\] \\[(?P<gunicorn_level>[A-Z]+)\\]"
+    }
+
+    // One lowercase level for both formats.
+    stage.template {
+      source   = "level"
+      template = "{{ if .Value }}{{ ToLower .Value }}{{ else if .gunicorn_level }}{{ ToLower .gunicorn_level }}{{ end }}"
+    }
+
+    // level has a handful of values, so it is a label (indexed, cheap to filter).
+    stage.labels {
+      values = {
+        level = "",
+      }
+    }
+
+    // IDs are unique per request. As labels they would create one stream per
+    // request and overwhelm Loki, so they go in structured metadata instead.
+    stage.structured_metadata {
+      values = {
+        request_id = "",
+        trace_id   = "",
+        span_id    = "",
+      }
+    }
+  }
+
 }
 
 loki.write "loki" {
@@ -182,6 +297,15 @@ otelcol.receiver.otlp "default" {
   http {
     endpoint = "0.0.0.0:4318"
   }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+// Group spans into batches before sending: fewer, larger requests to Tempo.
+otelcol.processor.batch "default" {
+  timeout = "5s"
 
   output {
     traces = [otelcol.exporter.otlp.tempo.input]
@@ -239,15 +363,36 @@ prometheus.scrape "rabbitmq" {
   forward_to      = [prometheus.remote_write.prometheus.receiver]
 }
 
+// /metrics above only has broker-wide totals. Per-queue depth and consumer
+// counts (needed to alert on the dead-letter queue) live on /metrics/detailed.
+prometheus.scrape "rabbitmq_queues" {
+  targets = [
+    {
+      "__address__" = "rabbitmq:15692",
+      "instance"    = "rabbitmq",
+      "environment" = "docker",
+      "application" = "wispurl",
+    },
+  ]
+
+  job_name        = "rabbitmq-queues"
+  metrics_path    = "/metrics/detailed"
+  params          = {
+    "family" = ["queue_coarse_metrics", "queue_consumer_count"],
+  }
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
 
 // =============================================================================
 // 8. PostgreSQL metrics
 //
-// Ensure POSTGRES_PASSWORD is set in Alloy's environment.
-//
-// For local development, the default credentials shown here are consistent with
-// your current PostgreSQL Compose defaults. In production, create a dedicated,
-// least-privileged PostgreSQL monitoring user.
+// The DSN comes from the Docker secret observability/secrets/postgres_dsn.txt
+// and logs in as wispurl_monitor, a read-only role with pg_monitor only
+// (created by db/init/create-monitoring-role.sh). The file must not end in a
+// newline, or the exporter fails to parse it.
 // =============================================================================
 
 local.file "postgres_dsn" {
@@ -262,6 +407,64 @@ prometheus.exporter.postgres "postgres" {
 prometheus.scrape "postgres" {
   targets         = prometheus.exporter.postgres.postgres.targets
   job_name        = "postgres"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+
+// =============================================================================
+// 9. Host and container metrics (USE: utilization, saturation, errors)
+//
+// The node exporter reads the host's /proc, /sys and / (mounted read-only
+// under /host). On Docker Desktop the "host" is Docker's Linux VM.
+// =============================================================================
+
+prometheus.exporter.unix "host" {
+  procfs_path    = "/host/proc"
+  sysfs_path     = "/host/sys"
+  rootfs_path    = "/host/root"
+  udev_data_path = "/host/root/run/udev/data"
+}
+
+// The exporter's default instance is Alloy's container hostname, which changes
+// every time Alloy is recreated. A fixed name keeps one continuous series.
+discovery.relabel "host" {
+  targets = prometheus.exporter.unix.host.targets
+
+  rule {
+    target_label = "instance"
+    replacement  = "docker-host"
+  }
+}
+
+prometheus.scrape "host" {
+  targets         = discovery.relabel.host.output
+  job_name        = "node"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+// cAdvisor: CPU, memory and network per container, via the Docker socket.
+prometheus.exporter.cadvisor "containers" {
+  docker_host      = "unix:///var/run/docker.sock"
+  docker_only      = true
+  storage_duration = "2m"
+}
+
+discovery.relabel "containers" {
+  targets = prometheus.exporter.cadvisor.containers.targets
+
+  rule {
+    target_label = "instance"
+    replacement  = "docker-host"
+  }
+}
+
+prometheus.scrape "containers" {
+  targets         = discovery.relabel.containers.output
+  job_name        = "cadvisor"
   scrape_interval = "15s"
   scrape_timeout  = "10s"
   forward_to      = [prometheus.remote_write.prometheus.receiver]

@@ -23,8 +23,8 @@ Alloy runs `prometheus.exporter.postgres` with the DSN read from a Docker secret
 - [x] `pg_up` = 1 and connection/transaction metrics are queryable
 
 ## Follow-ups
-- [ ] Create a dedicated monitoring role (`LOGIN` + `pg_monitor`, no superuser) via `db/init/` or a migration-style script
-- [ ] Point `observability/secrets/postgres_dsn.txt` at that role and update the README instructions
+- [x] Create a dedicated monitoring role (`LOGIN` + `pg_monitor`, no superuser) via `db/init/` or a migration-style script
+- [x] Point `observability/secrets/postgres_dsn.txt` at that role and update the README instructions
 - [ ] Rotate the `postgres` superuser password, since it has been stored in that DSN file (update `.env`, the database URLs in Vault, and restart services)
 
 ## References

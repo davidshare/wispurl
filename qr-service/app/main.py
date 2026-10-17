@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.responses import Response as StarletteResponse
 from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
-from wispurl_otel import setup_otel, instrument_fastapi
+from wispurl_otel import instrument_fastapi, setup_otel
 
 from app.config import get_settings
 from app.errors.exceptions import (
@@ -86,7 +86,9 @@ def create_app() -> FastAPI:
         return response
 
     # Register the prometheus middleware for metrics collection
-    app.add_middleware(PrometheusMiddleware, service_name="qr")
+    # Same name as OTEL_SERVICE_NAME and the Compose service, so metrics, logs
+    # and traces for this service can be matched up.
+    app.add_middleware(PrometheusMiddleware, service_name="qr-service")
 
     app.add_exception_handler(QrDomainError, handle_domain_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)

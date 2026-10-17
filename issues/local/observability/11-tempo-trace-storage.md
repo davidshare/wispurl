@@ -2,7 +2,7 @@
 id: LOC-6.11
 title: "Trace storage and visualization with Tempo or Jaeger"
 category: "6. Observability (Local Stack)"
-status: partial
+status: done
 related:
   - docs/local/observability/obs-02-tempo-trace-storage-and-query-backend.md
 ---
@@ -19,13 +19,13 @@ Tempo runs with OTLP/Jaeger receivers, local storage, 744h block retention and a
 - [x] Tempo service with persistent volume
 - [x] OTLP receivers (fed by Alloy)
 - [x] Block retention configured
-- [ ] Add Tempo as a Grafana data source (with traces→logs and service graph)
+- [x] Add Tempo as a Grafana data source (with traces→logs and service graph)
 - [x] Enable metrics-generator processors (`service-graphs`, `span-metrics`) in overrides
-- [ ] Add a healthcheck and pin the image
-- [ ] Stop publishing unused receiver ports (14250/14268) to the host if not needed
+- [x] Add a healthcheck and pin the image
+- [x] Stop publishing unused receiver ports (14250/14268) to the host if not needed
 
 ## Acceptance criteria
-- [ ] A trace can be found and viewed in Grafana Explore
+- [x] A trace can be found and viewed in Grafana Explore
 
 ## References
 - [observability/tempo/tempo.yaml](../../../observability/tempo/tempo.yaml)

@@ -11,10 +11,11 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from opentelemetry.instrumentation.utils import suppress_instrumentation
 from sqlalchemy import text
 from starlette.responses import Response as StarletteResponse
 from wispurl_metrics import PrometheusMiddleware, metrics_endpoint
-from wispurl_otel import setup_otel, instrument_fastapi
+from wispurl_otel import instrument_fastapi, setup_otel
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -124,7 +125,9 @@ def create_app() -> FastAPI:
         return response
 
     # Register the prometheus middleware for metrics collection
-    app.add_middleware(PrometheusMiddleware, service_name="shortener")
+    # Same name as OTEL_SERVICE_NAME and the Compose service, so metrics, logs
+    # and traces for this service can be matched up.
+    app.add_middleware(PrometheusMiddleware, service_name="shortener-service")
 
     app.add_exception_handler(ShortenerDomainError, handle_domain_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
@@ -139,8 +142,10 @@ def create_app() -> FastAPI:
 
     @app.get("/health", status_code=status.HTTP_200_OK, tags=["health"])
     async def health() -> JSONResponse:
-        async with SessionLocal() as session:
-            await session.execute(text("SELECT 1"))
+        # Probes run every few seconds; don't turn each one into a database trace.
+        with suppress_instrumentation():
+            async with SessionLocal() as session:
+                await session.execute(text("SELECT 1"))
         return JSONResponse({"status": "ok"})
 
     app.include_router(redirect_router)

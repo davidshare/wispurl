@@ -2,7 +2,7 @@
 id: LOC-6.10
 title: "Distributed tracing implemented with OpenTelemetry"
 category: "6. Observability (Local Stack)"
-status: partial
+status: done
 related:
   - docs/local/observability/obs-03-opentelemetry-instrumentation-in-wispurl-services.md
 ---
@@ -20,19 +20,19 @@ Traces follow a request across the gateway, downstream services, the database an
 - [x] Inbound FastAPI instrumentation in all 6 HTTP services
 - [x] Compose OTel env pointing at `alloy:4317`
 - [x] Fix import order in all six `app/main.py` files
-- [ ] Instrument outbound httpx so trace context propagates (gateway → services, shortener → analytics/rate-limiter)
-- [ ] Instrument SQLAlchemy and Redis
-- [ ] Instrument aio-pika publish/consume and inject/extract context in message headers
-- [ ] Call `setup_otel` in analytics-consumer, cleanup and notification workers
-- [ ] Exclude `/health` and `/metrics` from tracing
-- [ ] Configure sampling and exporter timeout/queue limits
-- [ ] Add `trace_id`/`span_id` to structlog output
+- [x] Instrument outbound httpx so trace context propagates (gateway → services, shortener → analytics/rate-limiter)
+- [x] Instrument SQLAlchemy and Redis
+- [x] Instrument aio-pika publish/consume and inject/extract context in message headers (done by hand in `shared/messaging.py`; the aio-pika auto-instrumentation doesn't fit `queue.iterator()`)
+- [x] Call `setup_otel` in analytics-consumer, cleanup and notification workers
+- [x] Exclude `/health` and `/metrics` from tracing
+- [x] Configure sampling and exporter timeout/queue limits
+- [x] Add `trace_id`/`span_id` to structlog output
 - [x] Verify services keep running when Alloy is down
-- [ ] Fill in `shared/wispurl_otel/README.md` (usage, env vars) and replace the placeholder `description` in its `pyproject.toml`
+- [x] Fill in `shared/wispurl_otel/README.md` (usage, env vars) and replace the placeholder `description` in its `pyproject.toml`
 
 ## Acceptance criteria
-- [ ] One request through the gateway appears as a single trace spanning at least two downstream services
-- [ ] A RabbitMQ analytics event shows linked producer/consumer spans
+- [x] One request through the gateway appears as a single trace spanning at least two downstream services
+- [x] A RabbitMQ analytics event shows linked producer/consumer spans
 - [x] Stopping Alloy does not crash any service
 
 ## References

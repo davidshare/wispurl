@@ -3,6 +3,7 @@ import sys
 from typing import Any
 
 import structlog
+from wispurl_otel import add_trace_context
 
 # Keys whose values are redacted wherever they appear (top-level or nested).
 SECRET_KEYS = {
@@ -53,6 +54,8 @@ def configure_logging(service_name: str, log_level: str = "INFO") -> None:
 
     shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
+        # trace_id/span_id of the active span, so a log line links to its trace.
+        add_trace_context,
         _scrub_secrets,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso", utc=True),

@@ -89,19 +89,19 @@ commit → lint → type check → test → secret scan (blocking)
 
 ## 6. Observability (Local Stack)
 - [x] Prometheus deployed locally for metrics scraping
-- [ ] Grafana deployed locally with pre-configured dashboards
+- [x] Grafana deployed locally with pre-configured dashboards
 - [x] Application-level custom metrics exported
 - [x] Database metrics (PostgreSQL exporter) configured
 - [x] Redis metrics configured
 - [x] RabbitMQ metrics configured
-- [ ] Node and container metrics via Node Exporter and cAdvisor
+- [x] Node and container metrics via Node Exporter and cAdvisor
 - [x] Centralized log aggregation with Loki
 - [x] Log collection/forwarding via Grafana Alloy or Fluent Bit
-- [ ] Distributed tracing implemented with OpenTelemetry
-- [ ] Trace storage and visualization with Tempo or Jaeger
+- [x] Distributed tracing implemented with OpenTelemetry
+- [x] Trace storage and visualization with Tempo or Jaeger
 - [ ] Local Alertmanager configured with basic routing rules
 - [ ] Dashboards covering RED metrics (Rate, Errors, Duration) and USE metrics (Utilization, Saturation, Errors)
-- [ ] Runbook links attached to alert definitions (stubs are fine for now)
+- [x] Runbook links attached to alert definitions (stubs are fine for now)
 
 ## 7. Reliability and SRE (Local Validation)
 - [ ] Timeouts configured on every external network call

@@ -21,14 +21,14 @@ When an issue becomes `done`, update its `status:` front matter and tick the mat
 | 3. [Testing](#3-testing) | 0 | 0 | 9 | 9 |
 | 4. [Local CI/CD Pipeline (GitLab CI or Jenkins)](#4-local-cicd-pipeline-gitlab-ci-or-jenkins) | 0 | 0 | 14 | 14 |
 | 5. [Container Security (Local)](#5-container-security-local) | 3 | 0 | 5 | 8 |
-| 6. [Observability (Local Stack)](#6-observability-local-stack) | 7 | 2 | 5 | 14 |
+| 6. [Observability (Local Stack)](#6-observability-local-stack) | 12 | 2 | 0 | 14 |
 | 7. [Reliability and SRE (Local Validation)](#7-reliability-and-sre-local-validation) | 2 | 4 | 8 | 14 |
 | 8. [Backups and Disaster Recovery (Local)](#8-backups-and-disaster-recovery-local) | 1 | 0 | 7 | 8 |
 | 9. [Local Kubernetes and Packaging](#9-local-kubernetes-and-packaging) | 0 | 0 | 21 | 21 |
 | 10. [Security and Compliance (Local)](#10-security-and-compliance-local) | 0 | 1 | 4 | 5 |
 | 11. [Operations and Incident Response (Local)](#11-operations-and-incident-response-local) | 0 | 1 | 5 | 6 |
 | 12. [Cost and Capacity Management (Local)](#12-cost-and-capacity-management-local) | 0 | 1 | 2 | 3 |
-| **Total** | **31** | **14** | **87** | **132** |
+| **Total** | **36** | **14** | **82** | **132** |
 
 ## 1. Application Foundations
 
@@ -109,19 +109,19 @@ When an issue becomes `done`, update its `status:` front matter and tick the mat
 ## 6. Observability (Local Stack)
 
 - [x] [Prometheus deployed locally for metrics scraping](observability/01-prometheus.md)
-- [ ] [Grafana deployed locally with pre-configured dashboards](observability/02-grafana-with-dashboards.md)
+- [x] [Grafana deployed locally with pre-configured dashboards](observability/02-grafana-with-dashboards.md)
 - [x] [Application-level custom metrics exported](observability/03-application-custom-metrics.md)
 - [x] [Database metrics (PostgreSQL exporter) configured](observability/04-postgres-exporter.md)
 - [x] [Redis metrics configured](observability/05-redis-metrics.md)
 - [x] [RabbitMQ metrics configured](observability/06-rabbitmq-metrics.md)
-- [ ] [Node and container metrics via Node Exporter and cAdvisor](observability/07-node-and-container-metrics.md)
+- [x] [Node and container metrics via Node Exporter and cAdvisor](observability/07-node-and-container-metrics.md)
 - [x] [Centralized log aggregation with Loki](observability/08-loki-log-aggregation.md)
 - [x] [Log collection/forwarding via Grafana Alloy or Fluent Bit](observability/09-alloy-log-collection.md)
-- [ ] [Distributed tracing implemented with OpenTelemetry](observability/10-opentelemetry-tracing.md) _(partial)_
-- [ ] [Trace storage and visualization with Tempo or Jaeger](observability/11-tempo-trace-storage.md) _(partial)_
-- [ ] [Local Alertmanager configured with basic routing rules](observability/12-alertmanager.md)
-- [ ] [Dashboards covering RED metrics (Rate, Errors, Duration) and USE metrics (Utilization, Saturation, Errors)](observability/13-red-use-dashboards.md)
-- [ ] [Runbook links attached to alert definitions (stubs are fine for now)](observability/14-alert-runbook-links.md)
+- [x] [Distributed tracing implemented with OpenTelemetry](observability/10-opentelemetry-tracing.md)
+- [x] [Trace storage and visualization with Tempo or Jaeger](observability/11-tempo-trace-storage.md)
+- [ ] [Local Alertmanager configured with basic routing rules](observability/12-alertmanager.md) _(partial)_
+- [ ] [Dashboards covering RED metrics (Rate, Errors, Duration) and USE metrics (Utilization, Saturation, Errors)](observability/13-red-use-dashboards.md) _(partial)_
+- [x] [Runbook links attached to alert definitions (stubs are fine for now)](observability/14-alert-runbook-links.md)
 
 ## 7. Reliability and SRE (Local Validation)
 

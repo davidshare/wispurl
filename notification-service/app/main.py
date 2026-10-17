@@ -8,8 +8,10 @@ failures are retried then dead-lettered (handled by :func:`shared.messaging`).
 from __future__ import annotations
 
 import asyncio
+import os
 
 import structlog
+from wispurl_otel import setup_otel
 
 from app.config import get_settings
 from app.consumer import build_handler
@@ -25,6 +27,7 @@ _MAX_ATTEMPTS = 5
 
 async def main() -> None:
     """Consume notification events forever (reconnecting with backoff)."""
+    setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "notification-service"))
     settings = get_settings()
     configure_logging("notification-service", settings.log_level)
     logger.info("notification_started", channel=settings.notify_channel)

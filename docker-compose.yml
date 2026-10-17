@@ -3,11 +3,15 @@ name: wispurl
 # =========================================================================
 # YAML ANCHORS FOR OTEL CONFIGURATION
 # =========================================================================
+# Alloy scrapes /metrics from containers that carry these labels.
 x-prometheus-labels: &prometheus-labels
-  labels:
-    - "prometheus.io/scrape=true"
-    - "prometheus.io/port=8000"
-    - "prometheus.io/path=/metrics"
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: /metrics
+
+# Alloy parses these containers' logs as Python JSON logs (plus Gunicorn lines).
+x-python-log-labels: &python-log-labels
+  logging.wispurl/format: python
 
 x-otel-env: &otel-env
   OTEL_EXPORTER_OTLP_PROTOCOL: grpc
@@ -19,6 +23,18 @@ x-otel-env: &otel-env
 
   OTEL_PROPAGATORS: tracecontext,baggage
   OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local,service.version=1.0.0
+
+  # Sampling: keep every trace locally. parentbased_ means a service follows the
+  # caller's decision, so a trace is never half-recorded. In production use
+  # parentbased_traceidratio with OTEL_TRACES_SAMPLER_ARG=0.1 (10%).
+  OTEL_TRACES_SAMPLER: parentbased_always_on
+  # Export limits: spans wait at most 5 s before being sent in batches of up to
+  # 512; at most 2048 wait in memory (extra spans are dropped, never blocking a
+  # request). The Python exporter reads the timeout in seconds.
+  OTEL_BSP_SCHEDULE_DELAY: "5000"
+  OTEL_BSP_MAX_EXPORT_BATCH_SIZE: "512"
+  OTEL_BSP_MAX_QUEUE_SIZE: "2048"
+  OTEL_EXPORTER_OTLP_TIMEOUT: "10"
 
 services:
   postgres:
@@ -39,6 +55,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      # Password for the read-only wispurl_monitor role used by the metrics exporter.
+      POSTGRES_MONITOR_PASSWORD: ${POSTGRES_MONITOR_PASSWORD:-}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -82,8 +100,8 @@ services:
       additional_contexts:
         shared_lib: ./shared
 
-    # Merge the common labels
-    <<: *prometheus-labels
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
 
     environment:
       # Merge the common OTEL env vars
@@ -133,8 +151,8 @@ services:
       additional_contexts:
         shared_lib: ./shared
 
-    # Merge the common labels
-    <<: *prometheus-labels
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
     
     environment:
       # Merge the common OTEL env vars
@@ -186,8 +204,8 @@ services:
       additional_contexts:
         shared_lib: ./shared
 
-    # Merge the common labels
-    <<: *prometheus-labels
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
     
     environment:
       # Merge the common OTEL env vars
@@ -243,6 +261,8 @@ services:
         shared_lib: ./shared
     
     entrypoint: ["python", "-m", "app.worker"]
+    labels:
+      <<: *python-log-labels
     environment:
       # Merge the common OTEL env vars
       <<: *otel-env
@@ -284,6 +304,8 @@ services:
       additional_contexts:
         shared_lib: ./shared
     
+    labels:
+      <<: *python-log-labels
     environment:
       # Merge the common OTEL env vars
       <<: *otel-env
@@ -327,6 +349,8 @@ services:
       additional_contexts:
         shared_lib: ./shared
     
+    labels:
+      <<: *python-log-labels
     environment:
       # Merge the common OTEL env vars
       <<: *otel-env
@@ -366,8 +390,8 @@ services:
       additional_contexts:
         shared_lib: ./shared
 
-    # Merge the common labels
-    <<: *prometheus-labels
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
     
     environment:
       # Merge the common OTEL env vars
@@ -416,8 +440,8 @@ services:
       additional_contexts:
         shared_lib: ./shared
     
-    # Merge the common labels
-    <<: *prometheus-labels
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
     
     environment:
       # Merge the common OTEL env vars
@@ -467,8 +491,8 @@ services:
       additional_contexts:
         shared_lib: ./shared
 
-    # Merge the common labels
-    <<: *prometheus-labels
+    labels:
+      <<: [*prometheus-labels, *python-log-labels]
     
     environment:
       # Merge the common OTEL env vars
