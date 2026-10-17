@@ -51,7 +51,7 @@ discovery.relabel "metrics" {
     action        = "keep"
   }
 
-  // 4. NEW: Drop IPv6 port bindings to prevent duplicate targets per container
+  // 4. Drop IPv6 port bindings to prevent duplicate targets per container
   rule {
     source_labels = ["__meta_docker_port_public_ip"]
     regex         = "^::$"
@@ -71,10 +71,11 @@ discovery.relabel "metrics" {
     replacement  = "$1:$2"
   }
 
-  // 6. A service without prometheus.io/path uses /metrics, which is the default
+  // 6. Honour a custom prometheus.io/path. Containers without the label fall
+  //    back to the scrape's metrics_path (/metrics).
   rule {
     source_labels = ["__meta_docker_container_label_prometheus_io_path"]
-    regex         = "^/.+$"
+    regex         = "^(/.+)$"
     target_label  = "__metrics_path__"
     replacement   = "$1"
   }
@@ -275,7 +276,6 @@ loki.process "wispurl" {
       }
     }
   }
-
 }
 
 loki.write "loki" {

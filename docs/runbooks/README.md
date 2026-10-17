@@ -5,6 +5,7 @@ One page per alert in [`observability/prometheus/rules/wispurl-alerts.yml`](../.
 | Alert | Severity |
 | --- | --- |
 | [TargetDown](target-down.md) | critical |
+| [ServiceDisappeared](service-disappeared.md) | critical |
 | [MetricsPipelineDown](metrics-pipeline-down.md) | critical |
 | [HighErrorRate](high-error-rate.md) | warning |
 | [HighLatencyP95](high-latency.md) | warning |

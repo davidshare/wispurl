@@ -2,7 +2,9 @@ groups:
   - name: pipeline
     rules:
       - alert: TargetDown
-        expr: up == 0
+        # Copy compose_service into service, so app targets group and inhibit by
+        # service like every other alert. Other targets keep their job label.
+        expr: label_replace(up == 0, "service", "$1", "compose_service", "(.+)")
         for: 2m
         labels:
           severity: critical
@@ -10,6 +12,25 @@ groups:
           summary: "{{ $labels.job }} target {{ $labels.instance }} is down"
           description: "{{ $labels.instance }} (job {{ $labels.job }}) has failed every scrape for 2 minutes."
           runbook_url: "https://github.com/davidshare/wispurl/blob/master/docs/runbooks/target-down.md"
+
+      # A stopped container drops out of Docker discovery, so its `up` series
+      # disappears rather than turning 0 and TargetDown never fires. This catches
+      # any service that had a target in the last hour but has none now.
+      - alert: ServiceDisappeared
+        expr: |
+          label_replace(
+            count by (compose_service) (max_over_time(up{job="docker-compose-services"}[1h]))
+              unless
+            count by (compose_service) (up{job="docker-compose-services"}),
+            "service", "$1", "compose_service", "(.+)"
+          )
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} has no running container"
+          description: "{{ $labels.service }} was scraped within the last hour but has no target now. Its container is probably stopped or crash-looping."
+          runbook_url: "https://github.com/davidshare/wispurl/blob/master/docs/runbooks/service-disappeared.md"
 
       # If Alloy stops forwarding, the services' `up` series vanish instead of
       # turning 0, so TargetDown can't fire for them. absent() catches that.

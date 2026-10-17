@@ -50,7 +50,12 @@ def _scrub_secrets(
 
 
 def configure_logging(service_name: str, log_level: str = "INFO") -> None:
-    """Configure JSON logs with request_id-friendly context binding."""
+    """Configure JSON logs with request_id-friendly context binding.
+
+    Both structlog loggers and standard-library loggers (httpx, uvicorn,
+    SQLAlchemy, aio-pika, ...) print one JSON object per line, so every line
+    carries the same fields (level, timestamp, service, request_id, trace_id).
+    """
 
     shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
@@ -59,20 +64,33 @@ def configure_logging(service_name: str, log_level: str = "INFO") -> None:
         _scrub_secrets,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
+    ]
+    render_processors: list[Any] = [
+        # Turn exc_info into an "exception" string, so a traceback stays inside
+        # its single JSON line instead of spilling over many lines.
+        structlog.processors.format_exc_info,
         structlog.processors.EventRenamer("message"),
+        structlog.processors.JSONRenderer(),
     ]
 
-    logging.basicConfig(
-        format="%(message)s",
-        stream=sys.stdout,
-        level=log_level.upper(),
-        force=True,
+    # Standard-library loggers: render through the same processors as structlog.
+    stdlib_formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=[*shared_processors, structlog.stdlib.add_logger_name],
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            *render_processors,
+        ],
     )
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(stdlib_formatter)
+    root_logger = logging.getLogger()
+    root_logger.handlers = [handler]
+    root_logger.setLevel(log_level.upper())
 
     structlog.configure(
         processors=[
             *shared_processors,
-            structlog.processors.JSONRenderer(),
+            *render_processors,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
             logging.getLevelName(log_level.upper()),

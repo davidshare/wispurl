@@ -20,7 +20,7 @@ That event's work did not happen: a click was not counted, or a notification was
 ## How to fix
 
 - Fix the bug or dependency that caused the failure first.
-- Then move the messages back for reprocessing with the management UI's **Move messages** (shovel plugin) or by republishing them, and confirm the queue drains to 0.
+- Then move the messages back for reprocessing and confirm the queue drains to 0. The management UI's **Move messages** button needs the shovel plugins, which WispURL doesn't enable by default: `docker compose exec rabbitmq rabbitmq-plugins enable rabbitmq_shovel rabbitmq_shovel_management`. Without them, republish the messages to the `events` exchange with their original routing key.
 
 ## After it's fixed
 
