@@ -9,36 +9,36 @@ category — no separate "done" list.
 
 ## 1. Application Foundations
 - [x] Docker Compose configuration for local development parity
-- [ ] Dockerfiles for every service using multi-stage builds
+- [x] Dockerfiles for every service using multi-stage builds
 - [ ] Separate configuration files for development, staging, and production environments
 - [ ] Health endpoints: `/health`, `/ready`, and `/live`
 - [ ] Graceful shutdown handling (SIGTERM) in application code
-- [ ] Structured JSON logging with standardized fields
-- [ ] Correlation/request IDs propagated across all service boundaries (via `contextvars`)
-- [ ] API documentation generated and served via OpenAPI/Swagger
-- [ ] Database migrations managed via Alembic (or Flyway/Liquibase)
+- [x] Structured JSON logging with standardized fields
+- [x] Correlation/request IDs propagated across all service boundaries (via `contextvars`)
+- [x] API documentation generated and served via OpenAPI/Swagger
+- [x] Database migrations managed via Alembic (or Flyway/Liquibase)
 - [ ] Seed data and repeatable local initialization scripts
-- [ ] Strict dependency and version pinning (lockfiles)
+- [x] Strict dependency and version pinning (lockfiles)
 
 ## 2. Secrets Management (Local)
 - [x] Gitleaks installed and actively scanning the repo for committed secrets
 - [x] HashiCorp Vault deployed and running locally
-- [ ] Vault initialized with a secure key-shares/unseal process documented (even in dev mode, document what production unseal would look like)
-- [ ] Vault audit device enabled (logs every secret access)
-- [ ] Vault policies defined per service/team (least privilege, not root-token-everywhere)
-- [ ] Vault auth method configured for services (AppRole locally; Kubernetes auth once local k8s is up)
-- [ ] Vault KV v2 secrets engine configured for application secrets
+- [x] Vault initialized with a secure key-shares/unseal process documented (even in dev mode, document what production unseal would look like)
+- [x] Vault audit device enabled (logs every secret access)
+- [x] Vault policies defined per service/team (least privilege, not root-token-everywhere)
+- [x] Vault auth method configured for services (AppRole locally; Kubernetes auth once local k8s is up)
+- [x] Vault KV v2 secrets engine configured for application secrets
 - [ ] Vault Database secrets engine configured for dynamic, short-lived DB credentials
 - [ ] Vault Transit engine configured if any encryption-as-a-service need exists
 - [ ] Vault PKI engine configured for internal TLS issuance (optional at local scale)
 - [ ] Vault Agent or Agent Injector sidecar pattern tested locally
 - [ ] Secret rotation process defined and tested at least once (manual is fine locally)
-- [ ] Gitleaks wired in as a pre-commit hook, not just a manual/ad hoc scan
+- [x] Gitleaks wired in as a pre-commit hook, not just a manual/ad hoc scan
 - [ ] Gitleaks added as a **blocking** CI pipeline stage (see Section 3)
-- [ ] `.env` files git-ignored; `.env.example` maintained with placeholder values
+- [x] `.env` files git-ignored; `.env.example` maintained with placeholder values
 - [ ] Verified no secrets get baked into Docker images (`docker history`, layer inspection)
-- [ ] Documented process for developers to pull secrets from Vault rather than sharing via Slack/email
-- [ ] Vault Raft snapshot backup configured (cross-ref Section 7)
+- [x] Documented process for developers to pull secrets from Vault rather than sharing via Slack/email
+- [x] Vault Raft snapshot backup configured (cross-ref Section 7)
 - [ ] Vault snapshot restore drill executed at least once (cross-ref Section 7)
 
 ## 3. Testing
@@ -78,9 +78,9 @@ commit → lint → type check → test → secret scan (blocking)
 ```
 
 ## 5. Container Security (Local)
-- [ ] Minimal base images (distroless, alpine)
-- [ ] Containers run as non-root user
-- [ ] Explicit `USER` instructions in all Dockerfiles
+- [x] Minimal base images (distroless, alpine)
+- [x] Containers run as non-root user
+- [x] Explicit `USER` instructions in all Dockerfiles
 - [ ] Read-only root filesystems where application logic permits
 - [ ] Unnecessary Linux capabilities dropped (Compose and Kubernetes manifests)
 - [ ] CPU and memory limits defined in Compose and Kubernetes manifests
@@ -88,15 +88,15 @@ commit → lint → type check → test → secret scan (blocking)
 - [ ] Local Kubernetes manifest scanning with Kubescape or KubeLinter
 
 ## 6. Observability (Local Stack)
-- [ ] Prometheus deployed locally for metrics scraping
+- [x] Prometheus deployed locally for metrics scraping
 - [ ] Grafana deployed locally with pre-configured dashboards
-- [ ] Application-level custom metrics exported
-- [ ] Database metrics (PostgreSQL exporter) configured
-- [ ] Redis metrics configured
-- [ ] RabbitMQ metrics configured
+- [x] Application-level custom metrics exported
+- [x] Database metrics (PostgreSQL exporter) configured
+- [x] Redis metrics configured
+- [x] RabbitMQ metrics configured
 - [ ] Node and container metrics via Node Exporter and cAdvisor
-- [ ] Centralized log aggregation with Loki
-- [ ] Log collection/forwarding via Grafana Alloy or Fluent Bit
+- [x] Centralized log aggregation with Loki
+- [x] Log collection/forwarding via Grafana Alloy or Fluent Bit
 - [ ] Distributed tracing implemented with OpenTelemetry
 - [ ] Trace storage and visualization with Tempo or Jaeger
 - [ ] Local Alertmanager configured with basic routing rules
@@ -109,8 +109,8 @@ commit → lint → type check → test → secret scan (blocking)
 - [ ] Circuit breakers added for external dependencies
 - [ ] Idempotency keys implemented for critical operations (payments, link creation)
 - [ ] Rate limiting logic implemented and tested locally
-- [ ] Dead-letter queues configured for failed message processing
-- [ ] Health checks configured for all downstream dependencies
+- [x] Dead-letter queues configured for failed message processing
+- [x] Health checks configured for all downstream dependencies
 - [ ] Graceful degradation / fail-open / fail-closed behaviors documented and tested
 - [ ] Chaos test: service restarts simulated and verified
 - [ ] Chaos test: dependency failures simulated and verified
@@ -122,7 +122,7 @@ commit → lint → type check → test → secret scan (blocking)
 ## 8. Backups and Disaster Recovery (Local)
 - [ ] PostgreSQL automated local backup scripts (`pg_dump`)
 - [ ] PostgreSQL local restore testing documented and executed
-- [ ] HashiCorp Vault Raft snapshots configured locally
+- [x] HashiCorp Vault Raft snapshots configured locally
 - [ ] Vault snapshot restore testing executed
 - [ ] Redis persistence strategy (RDB/AOF) decided and configured
 - [ ] RabbitMQ definitions export/import drill
