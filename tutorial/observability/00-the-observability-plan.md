@@ -243,7 +243,7 @@ We'll build in this order. Each part only depends on the ones before it.
 | 11 | Trace propagation | Follow a request across services and RabbitMQ |
 | 12 | Database and Redis tracing | See every query inside a trace |
 | 13 | Linking logs and traces | Jump from a log line to its trace and back |
-| 14 | Dashboards as code | RED and USE dashboards in Git |
+| 14 | Production dashboards as code | Overview, drill-down, business and infrastructure dashboards, generated and kept in Git |
 | 15 | Alerting | Get an email when something breaks |
 | 16 | Runbooks | Know what to do when it does |
 

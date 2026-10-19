@@ -8,6 +8,7 @@ as a UUID by the request schema) and returns the limit decision.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
+from wispurl_metrics.business import RATE_LIMIT_DECISIONS
 
 from app.dependencies import RedisDep, SettingsDep
 from app.errors.exceptions import UnknownActionError
@@ -37,8 +38,14 @@ async def check(
     if limit is None:
         raise UnknownActionError
     limiter = RateLimiter(redis, settings)
-    return await limiter.check(
+    result = await limiter.check(
         user_id=str(payload.user_id),
         action=payload.action,
         limit=limit,
     )
+    # payload.action is validated against the allow-list above, so it's bounded.
+    RATE_LIMIT_DECISIONS.labels(
+        action=payload.action,
+        decision="allowed" if result.allowed else "denied",
+    ).inc()
+    return result

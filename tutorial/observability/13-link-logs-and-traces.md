@@ -265,7 +265,7 @@ The `url` shows as `${__value.raw}`: the `$$` escaping worked.
 - One click from a log line to its full trace, and from any span to its logs.
 - Searches by trace ID or request ID across every service.
 
-Investigating is now fast. Next we make the important signals visible at a glance: in [Part 14](14-dashboards-as-code.md) we build RED and USE dashboards and keep them in Git.
+Investigating is now fast. Next we make the important signals visible at a glance: in [Part 14](14-dashboards-as-code.md) we build a production-style set of dashboards, from a system overview down to one service, and generate them from code in Git.
 
 ## Key takeaways
 

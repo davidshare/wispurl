@@ -450,6 +450,8 @@ Every HTTP service exposes the same RED metrics on `/metrics`:
 
 Labels are bounded, the numbers are correct across Gunicorn workers, and every service reports under its Compose name.
 
+These metrics describe how the services behave, not what the product is doing, and they can't see the background workers, which serve no HTTP. [Part 14](14-dashboards-as-code.md) adds both: business and message-pipeline counters in the same shared package, and a small `/metrics` server in each worker.
+
 Nothing is collecting them yet. In [Part 3](03-collect-service-metrics-with-alloy.md) we deploy Grafana Alloy to find the services automatically, scrape them, and push the results into Prometheus.
 
 ## Key takeaways

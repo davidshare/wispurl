@@ -267,7 +267,8 @@ services:
     
     entrypoint: ["python", "-m", "app.worker"]
     labels:
-      <<: *python-log-labels
+      # Workers serve /metrics on 8000 from a small built-in HTTP server.
+      <<: [*prometheus-labels, *python-log-labels]
     environment:
       # Merge the common OTEL env vars
       <<: *otel-env
@@ -295,7 +296,14 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
+      # A real check: the worker's metrics server answers only while the process runs.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/metrics', timeout=2)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -310,7 +318,8 @@ services:
         shared_lib: ./shared
     
     labels:
-      <<: *python-log-labels
+      # Workers serve /metrics on 8000 from a small built-in HTTP server.
+      <<: [*prometheus-labels, *python-log-labels]
     environment:
       # Merge the common OTEL env vars
       <<: *otel-env
@@ -340,7 +349,14 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
+      # A real check: the worker's metrics server answers only while the process runs.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/metrics', timeout=2)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -355,7 +371,8 @@ services:
         shared_lib: ./shared
     
     labels:
-      <<: *python-log-labels
+      # Workers serve /metrics on 8000 from a small built-in HTTP server.
+      <<: [*prometheus-labels, *python-log-labels]
     environment:
       # Merge the common OTEL env vars
       <<: *otel-env
@@ -381,7 +398,14 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
+      # A real check: the worker's metrics server answers only while the process runs.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/metrics', timeout=2)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

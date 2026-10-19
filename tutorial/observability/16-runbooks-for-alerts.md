@@ -160,7 +160,7 @@ The runbooks for alerts about missing data spell out the surprise. `ServiceDisap
 
 A few examples of the "how to confirm" steps, to show the level of detail:
 
-- **HighLatencyP95** points at the RED dashboard, then gives a TraceQL query for the slow requests (`{resource.service.name="<service>" && duration > 1s}`) and says what to look for: which span takes the time, whether it's a SQL query, a Redis call or a downstream service.
+- **HighLatencyP95** points at the Service Detail dashboard (with a link that preselects the service), then gives a TraceQL query for the slow requests (`{resource.service.name="<service>" && duration > 1s}`) and says what to look for: which span takes the time, whether it's a SQL query, a Redis call or a downstream service.
 - **PostgresConnectionsHigh** gives the exact `psql` query that groups `pg_stat_activity` by user, application and state, and explains that many `idle in transaction` connections point to a code path not closing transactions.
 - **MetricsPipelineDown** starts with the Alloy UI at http://127.0.0.1:12345, where unhealthy components show in red.
 

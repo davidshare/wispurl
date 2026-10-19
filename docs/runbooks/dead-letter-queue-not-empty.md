@@ -13,9 +13,10 @@ That event's work did not happen: a click was not counted, or a notification was
 
 ## How to confirm
 
-1. Open RabbitMQ management at http://127.0.0.1:15672, queue `events.dlq`, and use **Get messages** to read one.
-2. Find the failure in the consumer's logs: `{service=~"analytics-consumer-service|notification-service", level=~"error|warning"} |= "event_dropped_to_dlq"`.
-3. Open the trace linked from that log line to see the failing span.
+1. Open **Workers & Messaging** (http://127.0.0.1:3001/d/wispurl-workers): **Dead-lettered (range)** and **Outcome per second** show which queue sent messages there and whether they were `malformed` or failed every retry (`dead_letter`).
+2. Open RabbitMQ management at http://127.0.0.1:15672, queue `events.dlq`, and use **Get messages** to read one.
+3. Find the failure in the consumer's logs: `{service=~"analytics-consumer-service|notification-service", level=~"error|warning"} |= "event_dropped_to_dlq"`.
+4. Open the trace linked from that log line to see the failing span.
 
 ## How to fix
 

@@ -1,8 +1,6 @@
 import os
 import time
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     REGISTRY,
@@ -13,6 +11,9 @@ from prometheus_client import (
     generate_latest,
     multiprocess,
 )
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 # Label for requests that matched no route (404s, scanners). Using the raw URL
 # instead would create a new time series for every random path.

@@ -40,7 +40,7 @@ The demo application is **WispURL**, a URL shortener made of ten services, Postg
 | 11 | [Connect Traces Across Services and Queues](11-connect-traces-across-services.md) | Context propagation over HTTP and RabbitMQ |
 | 12 | [Trace Database and Redis Calls](12-trace-database-and-redis-calls.md) | SQL and Redis spans, and keeping probe noise out of traces |
 | 13 | [Link Logs and Traces](13-link-logs-and-traces.md) | Trace IDs in logs and one-click jumps between Loki and Tempo |
-| 14 | [Dashboards as Code](14-dashboards-as-code.md) | RED and USE dashboards stored in Git |
+| 14 | [Production Dashboards as Code](14-dashboards-as-code.md) | Overview, per-service drill-down, business and infrastructure dashboards generated from Python |
 | 15 | [Alerting with Prometheus and Alertmanager](15-alerting-with-alertmanager.md) | Alert rules, routing, inhibition and local email with Mailpit |
 | 16 | [Runbooks for Every Alert](16-runbooks-for-alerts.md) | Turning alerts into actions people can follow |
 

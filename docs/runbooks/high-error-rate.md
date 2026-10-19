@@ -13,9 +13,9 @@ Users are getting errors from that service, or from the gateway if it is the fai
 
 ## How to confirm
 
-1. Open the **WispURL — Services (RED)** dashboard and filter to the service.
-2. Check the **Error logs** panel, or in Grafana Explore run `{service="<service>", level="error"}` against Loki.
-3. Open a failing request's trace from a log line's **View trace** link to see which hop failed.
+1. Open **Service Detail** for the service (http://127.0.0.1:3001/d/wispurl-service?var-service=<service>). **5xx per second by route** shows which endpoint fails.
+2. Set **Log level** to `error` and read the **Logs** panel, or in Grafana Explore run `{service="<service>", level="error"}` against Loki.
+3. Open a trace from the **Failed requests** panel, or from a log line's **View trace** link, to see which hop failed.
 4. Check dependency alerts (Postgres, Redis, RabbitMQ) that may explain it.
 
 ## How to fix

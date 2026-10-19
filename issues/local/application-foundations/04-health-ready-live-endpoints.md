@@ -19,8 +19,9 @@ All 6 HTTP services expose a static `/health`. There is no `/live` or `/ready`, 
 - [x] `/health` on gateway, auth, shortener, analytics, qr and rate-limiter
 - [ ] Add `/live` that returns 200 without touching dependencies
 - [ ] Add `/ready` that checks each dependency with a short timeout (Postgres `SELECT 1`, Redis `PING`, RabbitMQ connection, gateway upstreams) and returns 503 on failure
-- [ ] Give workers (analytics-consumer, cleanup, notification) a real liveness signal (heartbeat file or tiny HTTP server)
-- [ ] Point Compose healthchecks at `/ready` and replace the no-op worker checks
+- [x] Give workers (analytics-consumer, cleanup, notification) a real liveness signal (heartbeat file or tiny HTTP server): each worker serves `/metrics` on port 8000 and the Compose healthcheck calls it
+- [ ] Make the worker liveness signal prove the main loop is progressing (the metrics thread keeps answering even if the consumer loop hangs), for example by checking a heartbeat timestamp
+- [ ] Point Compose healthchecks at `/ready` (the no-op worker checks are replaced)
 - [ ] Exclude probe endpoints from request metrics and tracing
 
 ## Acceptance criteria

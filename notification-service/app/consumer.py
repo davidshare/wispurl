@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import structlog
+from wispurl_metrics.business import NOTIFICATIONS
 
 from app.config import NotificationSettings
 from app.handlers import handle_link_expired, handle_link_milestone
@@ -25,10 +26,30 @@ def build_handler(settings: NotificationSettings) -> EventHandler:
 
     async def handle(envelope: EventEnvelope) -> None:
         if envelope.event == ROUTING_KEY_LINK_EXPIRED:
-            await handle_link_expired(settings, envelope)
+            kind, handler = "link_expired", handle_link_expired
         elif envelope.event == ROUTING_KEY_LINK_MILESTONE:
-            await handle_link_milestone(settings, envelope)
+            kind, handler = "milestone", handle_link_milestone
         else:
             logger.warning("unknown_event_ignored", event_type=envelope.event)
+            NOTIFICATIONS.labels(
+                type="unknown",
+                channel=settings.notify_channel,
+                result="ignored",
+            ).inc()
+            return
+        try:
+            await handler(settings, envelope)
+        except Exception:
+            NOTIFICATIONS.labels(
+                type=kind,
+                channel=settings.notify_channel,
+                result="failed",
+            ).inc()
+            raise
+        NOTIFICATIONS.labels(
+            type=kind,
+            channel=settings.notify_channel,
+            result="sent",
+        ).inc()
 
     return handle

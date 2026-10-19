@@ -7,6 +7,7 @@ and never exposed through the gateway. Accepts one click and returns ``202 Accep
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Response, status
+from wispurl_metrics.business import CLICKS_RECORDED
 
 from app.dependencies import SessionDep, SettingsDep
 from app.schemas.event import RecordClickRequest
@@ -29,4 +30,5 @@ async def record_event(
     """Record a single click event; requires a valid ``X-Internal-Key``."""
     service = AnalyticsService(session, settings)
     await service.record_click(payload)
+    CLICKS_RECORDED.labels(source="http").inc()
     return Response(status_code=status.HTTP_202_ACCEPTED)

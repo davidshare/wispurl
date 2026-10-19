@@ -13,9 +13,9 @@ Analytics and notifications are delayed. If it keeps growing, RabbitMQ memory an
 
 ## How to confirm
 
-1. Check the **RabbitMQ messages per queue** panel on the USE dashboard.
+1. Open **Workers & Messaging** (http://127.0.0.1:3001/d/wispurl-workers). **Messages waiting by queue** shows which queue is growing and **Consumers by queue** shows whether anything is reading it (0 means the consumer is gone).
 2. Is the consumer running? `docker compose ps analytics-consumer-service notification-service`.
-3. Is it failing and retrying? Check its logs for `event_retry`.
+3. Is it failing and retrying? The **Outcome per second** panel shows `retry` results; the worker's logs show `event_retry`. **Processing time p95** shows whether each message got slower.
 
 ## How to fix
 
