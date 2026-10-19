@@ -165,7 +165,7 @@ for SERVICE in "${SERVICES[@]}"; do
 		;;
 	cleanup-service)
 		vault kv put "secret/wispurl/${SERVICE}" \
-			DATABASE_URL="${SHORTENER_DATABASE_URL:-postgresql+psycopg://user:your-db-password-here@postgres:5432/short_db}" \
+			DATABASE_URL="${CLEANUP_DATABASE_URL:-postgresql+psycopg://cleanup_svc:your-db-password-here@postgres:5432/short_db}" \
 			RABBITMQ_URL="${RABBITMQ_URL:-amqp://user:your-rabbitmq-password-here@rabbitmq:5672/}" \
 			CLEANUP_INTERVAL_SECONDS="${CLEANUP_INTERVAL_SECONDS:-60}" \
 			BATCH_SIZE="${BATCH_SIZE:-500}" \

@@ -129,7 +129,7 @@ Then merge them into each of the six HTTP services (auth, shortener, analytics, 
       <<: [*prometheus-labels, *python-log-labels]
 ```
 
-> For example `docker-compose.yml` lines 103–104. The `*python-log-labels` anchor is used for logs in Part 8; until then, `<<: *prometheus-labels` is enough.
+> For example `docker-compose.yml` lines 108–109. The `*python-log-labels` anchor is used for logs in Part 8; until then, `<<: *prometheus-labels` is enough.
 
 The labels use **map** syntax (`key: value`), not list syntax (`- "key=value"`). YAML can merge maps from several anchors with `<<: [...]`, but it can't join lists. Map syntax lets a service combine the metrics labels with other label sets later.
 

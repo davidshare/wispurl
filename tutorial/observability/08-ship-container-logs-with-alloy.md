@@ -205,7 +205,7 @@ The six HTTP services already merge it with the metrics labels (`<<: [*prometheu
       <<: *python-log-labels
 ```
 
-> For example `docker-compose.yml` lines 264–265. The same goes for `cleanup-service` and `notification-service`.
+> The same goes for `cleanup-service` and `notification-service`. In [Part 14](14-dashboards-as-code.md) the workers gain a `/metrics` endpoint and switch to `<<: [*prometheus-labels, *python-log-labels]` like the HTTP services (`docker-compose.yml` lines 269–271).
 
 Rebuild (the logging change is in the images) and recreate:
 

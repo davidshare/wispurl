@@ -4,6 +4,7 @@ from uuid import UUID
 
 import httpx
 import structlog
+from wispurl_metrics.business import RATE_LIMITER_UNAVAILABLE
 
 from app.config import ShortenerSettings
 
@@ -48,5 +49,8 @@ async def check_rate_limit(
             user_id=str(user_id),
             fail_open=settings.rate_limiter_fail_open,
         )
+        RATE_LIMITER_UNAVAILABLE.labels(
+            fallback="allowed" if settings.rate_limiter_fail_open else "denied",
+        ).inc()
         return settings.rate_limiter_fail_open
     return allowed

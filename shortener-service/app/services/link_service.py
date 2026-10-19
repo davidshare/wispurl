@@ -6,6 +6,7 @@ from uuid import UUID
 import httpx
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from wispurl_metrics.business import REDIRECTS
 
 from app.config import ShortenerSettings
 from app.errors.exceptions import (
@@ -92,11 +93,18 @@ class LinkService:
         await self._session.commit()
 
     async def resolve_link(self, *, short_code: str) -> Link:
+        # Callers always get LinkNotFoundError, but the metric records why.
         link = await self._links.get_by_short_code(short_code)
-        if link is None or not link.is_active:
+        if link is None:
+            REDIRECTS.labels(result="not_found").inc()
+            raise LinkNotFoundError
+        if not link.is_active:
+            REDIRECTS.labels(result="inactive").inc()
             raise LinkNotFoundError
         if link.expires_at is not None and link.expires_at <= datetime.now(UTC):
+            REDIRECTS.labels(result="expired").inc()
             raise LinkNotFoundError
+        REDIRECTS.labels(result="found").inc()
         return link
 
     async def _generate_available_shortcode(self) -> str:

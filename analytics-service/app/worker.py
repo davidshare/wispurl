@@ -17,6 +17,11 @@ import asyncio
 import os
 
 import structlog
+from wispurl_metrics.business import (
+    CLICKS_RECORDED,
+    MILESTONES_REACHED,
+    start_metrics_server,
+)
 from wispurl_otel import setup_otel
 
 from app.config import get_settings
@@ -46,6 +51,7 @@ async def main() -> None:
     )
     settings = get_settings()
     configure_logging("analytics-consumer", settings.log_level)
+    start_metrics_server(int(os.getenv("METRICS_PORT", "8000")))
     milestones = settings.milestone_values
 
     # A dedicated publisher connection (separate from the consumer's) for emitting
@@ -61,8 +67,11 @@ async def main() -> None:
         async with SessionLocal() as session:
             service = AnalyticsService(session, settings)
             result = await service.ingest_click(payload, milestones=milestones)
+        CLICKS_RECORDED.labels(source="queue").inc()
 
         for threshold in result.crossed_milestones:
+            # Thresholds come from the MILESTONES setting, so the label is bounded.
+            MILESTONES_REACHED.labels(threshold=str(threshold)).inc()
             logger.info(
                 "milestone_crossed",
                 short_code=payload.short_code,

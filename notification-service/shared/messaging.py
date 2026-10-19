@@ -23,6 +23,7 @@ Robustness guarantees provided here:
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -40,6 +41,11 @@ from aio_pika.abc import (
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind
 from pydantic import BaseModel, ConfigDict, ValidationError
+from wispurl_metrics.business import (
+    MESSAGE_PROCESSING_SECONDS,
+    MESSAGES_PROCESSED,
+    MESSAGES_PUBLISHED,
+)
 from wispurl_otel import extract_trace_context, inject_trace_context
 
 logger = structlog.get_logger()
@@ -169,7 +175,12 @@ class EventPublisher:
                 content_type="application/json",
                 headers=headers,
             )
-            await self._exchange.publish(message, routing_key=routing_key)
+            try:
+                await self._exchange.publish(message, routing_key=routing_key)
+            except Exception:
+                MESSAGES_PUBLISHED.labels(routing_key=routing_key, result="error").inc()
+                raise
+            MESSAGES_PUBLISHED.labels(routing_key=routing_key, result="ok").inc()
 
 
 async def create_publisher(connection: AbstractRobustConnection) -> EventPublisher:
@@ -260,6 +271,8 @@ async def _process_message(
             "messaging.destination.name": queue_name,
         },
     ) as span:
+        started = time.perf_counter()
+        result = "ack"
         try:
             try:
                 envelope = EventEnvelope.model_validate_json(message.body)
@@ -267,6 +280,7 @@ async def _process_message(
                 logger.warning("event_malformed_dead_lettered", error=str(exc))
                 await _dead_letter(channel, message)
                 await message.ack()
+                result = "malformed"
                 return
 
             attempt = _header_int(message, "x-attempt", 1)
@@ -284,6 +298,7 @@ async def _process_message(
                     )
                     await _dead_letter(channel, message)
                     await message.ack()
+                    result = "dead_letter"
                 else:
                     logger.warning(
                         "event_retry",
@@ -295,7 +310,13 @@ async def _process_message(
                         channel, message, queue_name, attempt + 1
                     )
                     await message.ack()
+                    result = "retry"
         finally:
+            # queue_name is one of a few declared queues, so the label is bounded.
+            MESSAGES_PROCESSED.labels(queue=queue_name, result=result).inc()
+            MESSAGE_PROCESSING_SECONDS.labels(queue=queue_name).observe(
+                time.perf_counter() - started,
+            )
             clear_request_context()
 
 

@@ -224,7 +224,7 @@ groups:
 
 > `wispurl-alerts.yml` lines 48–76.
 
-- **Thresholds are a starting point.** 5% errors for 5 minutes and p95 above 1 second for 10 minutes are reasonable defaults for a web API. Tune them from what normal looks like on your RED dashboard. The project's SLO work replaces fixed thresholds with error-budget burn-rate alerts, which are the next level of maturity.
+- **Thresholds are a starting point.** 5% errors for 5 minutes and p95 above 1 second for 10 minutes are reasonable defaults for a web API. Tune them from what normal looks like on the Service Detail dashboard. The project's SLO work replaces fixed thresholds with error-budget burn-rate alerts, which are the next level of maturity.
 - **The `1` second threshold has a matching histogram bucket** (Part 2), so the percentile estimate is exact at that point.
 - **`for` is longer for latency** (10 minutes) because latency is naturally spikier than errors.
 - Both are `warning`: a slow or partially failing service needs attention soon, but isn't necessarily an emergency.

@@ -11,6 +11,7 @@ import asyncio
 import os
 
 import structlog
+from wispurl_metrics.business import start_metrics_server
 from wispurl_otel import setup_otel
 
 from app.config import get_settings
@@ -30,6 +31,7 @@ async def main() -> None:
     setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "notification-service"))
     settings = get_settings()
     configure_logging("notification-service", settings.log_level)
+    start_metrics_server(int(os.getenv("METRICS_PORT", "8000")))
     logger.info("notification_started", channel=settings.notify_channel)
 
     await messaging.run_consumer_forever(

@@ -173,7 +173,7 @@ Click `SELECT short_db` and look at its attributes:
 ```text
 db.system     postgresql
 db.name       short_db
-db.user       postgres
+db.user       shortener_svc
 db.operation  SELECT short_db
 db.statement  SELECT links.id, links.user_id, links.short_code, ... FROM links WHERE ...
 net.peer.name postgres
@@ -211,9 +211,19 @@ Both should return nothing. (`rootName` is the name of a trace's first span. A d
 
 **The service map grows.** The service graph (Part 11) now shows `short_db`, `auth_db`, `stats_db` and `redis` as nodes, with request rates and latencies on each edge. Tempo builds these "virtual" nodes from CLIENT spans that have database attributes.
 
-### Something the traces reveal
+### Use the traces as a security check
 
-Look again at `db.user` on the SQL spans: **`postgres`**, the database superuser. Every WispURL service connects to PostgreSQL as the superuser, so a bug or injection flaw in any one service has full control of every database. That isn't an observability problem, but observability is how you find out. It's tracked as a security task (per-service database credentials issued by Vault) in the project's local security issues. Telemetry routinely surfaces findings like this; read your spans' attributes with a security eye now and then.
+`db.user` tells you which database login each service uses. Look at it across services:
+
+```traceql
+{ span.db.system = "postgresql" }
+```
+
+Each service should show its **own** login: `auth_svc`, `shortener_svc`, `analytics_svc` (the analytics API and its consumer) and `cleanup_svc`.
+
+When this series was first written, every span said `postgres`, the database superuser. Every service connected as the superuser, so a bug or injection flaw in any one of them would have had full control of every database. The traces are how that was spotted, and it's since been fixed: `db/init/create-service-roles.sh` gives each service a login that owns only its own database, every database refuses other logins, and the cleanup worker can only read four columns of `links` and change `is_active`. The connection strings in Vault point at those logins.
+
+That isn't an observability feature, but observability is how you find out. Telemetry routinely surfaces findings like this, so read your spans' attributes with a security eye now and then. If `db.user` ever shows `postgres` again, something has regressed.
 
 ## When something goes wrong
 

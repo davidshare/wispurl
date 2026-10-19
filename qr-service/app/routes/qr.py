@@ -15,6 +15,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from wispurl_metrics.business import QR_CODES_GENERATED, qr_size_band
 
 from app.config import QrSettings, get_settings
 from app.errors.exceptions import InvalidShortCodeError
@@ -50,6 +51,7 @@ async def get_qr(
 
     target_url = f"{settings.public_base_url_str}/{short_code}"
     png = generate_qr_png(data=target_url, size_px=size)
+    QR_CODES_GENERATED.labels(size=qr_size_band(size)).inc()
 
     logger.info("qr_generated", short_code=short_code, size=size)
     return StreamingResponse(

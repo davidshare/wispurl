@@ -13,10 +13,10 @@ One request in twenty is slow. Redirects and link creation feel sluggish; timeou
 
 ## How to confirm
 
-1. Open the RED dashboard; compare p50, p95 and p99 for the service.
+1. Open **Service Detail** for the service (http://127.0.0.1:3001/d/wispurl-service?var-service=<service>); compare p50, p95 and p99, and use **p95 latency by route** to find the slow endpoint. The **Slowest recent requests** panel lists traces you can open directly.
 2. In Grafana Explore (Tempo), search for slow traces of the service: `{resource.service.name="<service>" && duration > 1s}`.
 3. Look at which span takes the time: a SQL query, a Redis call, or a downstream HTTP call.
-4. Check the USE dashboard for CPU or memory saturation.
+4. Check the **Resources** row on the same page, or the **Containers** dashboard, for CPU or memory saturation. The **Dependencies (from traces)** row shows whether an outgoing SQL, Redis or HTTP call got slower.
 
 ## How to fix
 

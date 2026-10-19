@@ -249,7 +249,7 @@ First, the broker must have the plugin enabled. WispURL's `rabbitmq` service in 
         rabbitmq-server
 ```
 
-> `docker-compose.yml` lines 597–602.
+> `docker-compose.yml` lines 626–631.
 
 `--offline` enables the plugin without a running broker, so it's active from the very first start. The plugin listens on port **15692**.
 

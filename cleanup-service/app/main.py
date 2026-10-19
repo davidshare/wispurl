@@ -12,9 +12,15 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 
 import structlog
 from opentelemetry import trace
+from wispurl_metrics.business import (
+    CLEANUP_SWEEP_SECONDS,
+    LINKS_EXPIRED,
+    start_metrics_server,
+)
 from wispurl_otel import setup_otel
 
 from app.config import get_settings
@@ -27,18 +33,21 @@ logger = structlog.get_logger()
 tracer = trace.get_tracer(__name__)
 
 
-async def run_once(publisher: messaging.EventPublisher, batch_size: int) -> None:
+async def run_once(publisher: messaging.EventPublisher, batch_size: int) -> int:
     """Run one sweep and publish a ``link.expired`` event per deactivated link.
 
     Links are deactivated first, then events are published. A publish failure means
     an expiry notification is missed (at-most-once) — acceptable, and the link stays
     correctly deactivated, so the next sweep will not re-process it.
+
+    Returns the number of links deactivated.
     """
     short_codes = await sweep_expired_links(batch_size)
     if not short_codes:
         logger.info("cleanup_sweep_empty")
-        return
+        return 0
     logger.info("cleanup_sweep_deactivated", count=len(short_codes))
+    LINKS_EXPIRED.labels(source="cleanup").inc(len(short_codes))
     for short_code in short_codes:
         try:
             await publish_link_expired(publisher, short_code)
@@ -55,6 +64,7 @@ async def main() -> None:
     setup_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "cleanup-service"))
     settings = get_settings()
     configure_logging("cleanup-service", settings.log_level)
+    start_metrics_server(int(os.getenv("METRICS_PORT", "8000")))
 
     backoff = 1.0
     while True:
@@ -68,9 +78,17 @@ async def main() -> None:
                 )
                 backoff = 1.0
                 while True:
-                    # One trace per sweep: its SQL and publish spans nest under it.
-                    with tracer.start_as_current_span("cleanup sweep"):
-                        await run_once(publisher, settings.batch_size)
+                    started = time.perf_counter()
+                    outcome = "error"
+                    try:
+                        # One trace per sweep: its SQL and publish spans nest under it.
+                        with tracer.start_as_current_span("cleanup sweep"):
+                            deactivated = await run_once(publisher, settings.batch_size)
+                        outcome = "deactivated" if deactivated else "empty"
+                    finally:
+                        CLEANUP_SWEEP_SECONDS.labels(outcome=outcome).observe(
+                            time.perf_counter() - started,
+                        )
                     await asyncio.sleep(settings.cleanup_interval_seconds)
         except asyncio.CancelledError:
             raise
